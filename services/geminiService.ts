@@ -3,7 +3,10 @@ import { GoogleGenAI, Type } from "@google/genai";
 
 export const getGeminiClient = () => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) console.warn("VITE_GEMINI_API_KEY is missing! Make sure it is set in your .env file or Vercel project settings.");
+  if (!apiKey) {
+    console.error("VITE_GEMINI_API_KEY is missing!");
+    throw new Error("API key not found. Please set VITE_GEMINI_API_KEY.");
+  }
   return new GoogleGenAI({ apiKey });
 };
 
