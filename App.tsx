@@ -381,7 +381,7 @@ const App: React.FC = () => {
                   {appLogo ? <img src={appLogo} className="w-full h-full object-contain" /> : 'LG'}
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-900 uppercase italic">Version 15.1</p>
+                  <p className="text-[10px] font-black text-slate-900 uppercase italic">Version 15.2 (Debug)</p>
                   <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Email Gateway<br />Secured</p>
                 </div>
               </div>
