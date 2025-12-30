@@ -2,8 +2,8 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 export const getGeminiClient = () => {
-  const apiKey = (typeof process !== 'undefined' && (process.env.GEMINI_API_KEY || process.env.API_KEY)) || "";
-  if (!apiKey) console.warn("GEMINI_API_KEY is missing!");
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) console.warn("VITE_GEMINI_API_KEY is missing! Make sure it is set in your .env file or Vercel project settings.");
   return new GoogleGenAI({ apiKey });
 };
 
