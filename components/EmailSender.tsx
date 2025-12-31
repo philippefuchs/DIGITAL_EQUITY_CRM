@@ -165,7 +165,10 @@ const EmailSender: React.FC<EmailSenderProps> = ({ contactId, contactEmail, cont
             if (dbError) throw dbError;
 
             // 3. Construire le pixel de tracking
-            const trackingUrl = `${window.location.origin}/api/track?id=${emailRecord.tracking_id}`;
+            // CRITICAL: Always use Production URL for the pixel, otherwise emails sent from Localhost 
+            // will have broken pixels (http://localhost...) that Gmail cannot load.
+            const baseUrl = 'https://digital-equity-crm.vercel.app';
+            const trackingUrl = `${baseUrl}/api/track?id=${emailRecord.tracking_id}`;
             // Avoid display:none as some clients block it. Use 1x1 transparent
             const pixelHtml = `<img src="${trackingUrl}" width="1" height="1" style="border:0;" alt="" />`;
 
