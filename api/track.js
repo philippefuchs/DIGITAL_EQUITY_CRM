@@ -83,8 +83,7 @@ export default async function handler(req, res) {
                                 .from('contacts')
                                 .update({
                                     score: newScore,
-                                    score_reason: newReason,
-                                    last_interaction: new Date().toISOString() // Optional: update interaction time
+                                    score_reason: newReason
                                 })
                                 .eq('id', current.lead_id);
 
