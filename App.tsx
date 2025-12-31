@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  BarChart3, Settings, Mail, Mic, Image as ImageIcon, Cpu, Activity, RefreshCw, Cloud, Link2, ShieldAlert, Copy, Save, Database, Upload, Trash2, HelpCircle, ExternalLink, AlertCircle, Check, Terminal, Code, Users, FileSpreadsheet, Zap, Scan, Key, Palette, Sparkles, Globe, BookOpen, Send, GitMerge, TrendingUp, FileText, Calendar, X
+  BarChart3, Settings, Mail, Mic, Image as ImageIcon, Cpu, Activity, RefreshCw, Cloud, Link2, ShieldAlert, Copy, Save, Database, Upload, Trash2, HelpCircle, ExternalLink, AlertCircle, Check, Terminal, Code, Users, FileSpreadsheet, Zap, Scan, Key, Palette, Sparkles, Globe, BookOpen, Send, GitMerge, TrendingUp, FileText, Calendar, X, Layers
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import ContactManager from './components/ContactManager';
@@ -15,11 +15,12 @@ import TemplateManager from './components/TemplateManager';
 import DuplicateManager from './components/DuplicateManager';
 import PipelineManager from './components/PipelineManager';
 import CalendarManager from './components/CalendarManager';
+import CarouselManager from './components/CarouselManager';
 import { checkUpcomingReminders, Reminder } from './services/reminderService';
 import { supabase, isSupabaseConfigured, saveSupabaseConfig } from './services/supabase';
 import { ToastProvider } from './components/ToastProvider';
 
-type View = 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar';
+type View = 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar' | 'carousel';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(isSupabaseConfigured() ? 'dashboard' : 'settings');
@@ -229,6 +230,7 @@ const App: React.FC = () => {
     { id: 'duplicates', label: 'Doublons', icon: <GitMerge size={20} />, color: 'from-amber-500 to-orange-600' },
     { id: 'pipeline', label: 'Pipeline', icon: <TrendingUp size={20} />, color: 'from-violet-500 to-purple-600' },
     { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, color: 'from-indigo-500 to-violet-600' },
+    { id: 'carousel', label: 'IA Carousel', icon: <Layers size={20} />, color: 'from-fuchsia-500 to-rose-500' },
     { id: 'campaigns', label: 'Campagnes', icon: <Mail size={20} />, color: 'from-rose-500 to-pink-600' },
     { id: 'templates', label: 'E-mail Library', icon: <BookOpen size={20} />, color: 'from-amber-400 to-orange-500' },
     { id: 'reporting', label: 'Export', icon: <FileSpreadsheet size={20} />, color: 'from-slate-400 to-slate-600' },
@@ -381,7 +383,7 @@ const App: React.FC = () => {
                   {appLogo ? <img src={appLogo} className="w-full h-full object-contain" /> : 'LG'}
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-slate-900 uppercase italic">Version 15.2 (Debug)</p>
+                  <p className="text-[10px] font-black text-slate-900 uppercase italic">Version 15.3 (Carousel Update)</p>
                   <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Email Gateway<br />Secured</p>
                 </div>
               </div>
@@ -427,6 +429,7 @@ const App: React.FC = () => {
               {currentView === 'duplicates' && <DuplicateManager />}
               {currentView === 'pipeline' && <PipelineManager />}
               {currentView === 'calendar' && <CalendarManager />}
+              {currentView === 'carousel' && <CarouselManager />}
               {currentView === 'campaigns' && <CampaignManager />}
               {currentView === 'templates' && <TemplateManager />}
               {currentView === 'reporting' && <ReportingManager />}
