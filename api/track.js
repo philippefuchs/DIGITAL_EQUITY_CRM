@@ -41,13 +41,14 @@ export default async function handler(req, res) {
             // Check current status
             const { data: current, error: selectError } = await supabase
                 .from('emails')
-                .select('status')
+                .select('status, lead_id')
                 .eq('tracking_id', id)
                 .single();
 
             if (selectError) console.error("Select Error:", selectError);
 
             if (current && current.status !== 'opened') {
+                // 1. Update Email Status
                 const { error: updateError } = await supabase
                     .from('emails')
                     .update({
@@ -58,6 +59,43 @@ export default async function handler(req, res) {
 
                 if (updateError) console.error("Update Error:", updateError);
                 else console.log("Successfully updated status to opened");
+
+                // 2. Boost Contact Score (+5 points, max 100)
+                if (current.lead_id) {
+                    try {
+                        const { data: contact, error: contactError } = await supabase
+                            .from('contacts')
+                            .select('score, score_reason')
+                            .eq('id', current.lead_id)
+                            .maybeSingle();
+
+                        if (contact && !contactError) {
+                            const currentScore = contact.score || 0;
+                            const newScore = Math.min(currentScore + 5, 100);
+
+                            // Prevent spamming reason if already high, but usually we log every meaningful interaction
+                            const reasonLine = `[${new Date().toLocaleDateString('fr-FR')}] Email Campaign Lu (+5 pts)`;
+                            const newReason = contact.score_reason
+                                ? `${contact.score_reason}\n${reasonLine}`
+                                : reasonLine;
+
+                            const { error: scoreError } = await supabase
+                                .from('contacts')
+                                .update({
+                                    score: newScore,
+                                    score_reason: newReason,
+                                    last_interaction: new Date().toISOString() // Optional: update interaction time
+                                })
+                                .eq('id', current.lead_id);
+
+                            if (scoreError) console.error("Score Update Error:", scoreError);
+                            else console.log(`Score boosted for lead ${current.lead_id}: ${currentScore} -> ${newScore}`);
+                        }
+                    } catch (scoreErr) {
+                        console.error("Score Logic Error:", scoreErr);
+                    }
+                }
+
             } else {
                 console.log("Already opened or not found");
             }

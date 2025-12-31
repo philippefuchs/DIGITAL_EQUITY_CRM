@@ -18,7 +18,61 @@ import CalendarManager from './components/CalendarManager';
 import CarouselManager from './components/CarouselManager';
 import { checkUpcomingReminders, Reminder } from './services/reminderService';
 import { supabase, isSupabaseConfigured, saveSupabaseConfig } from './services/supabase';
-import { ToastProvider } from './components/ToastProvider';
+import { ToastProvider, useToast } from './components/ToastProvider';
+
+// --- GLOBAL REALTIME LISTENER ---
+const GlobalNotifications = () => {
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (!isSupabaseConfigured()) return;
+
+    // Listen to ALL changes on 'emails' table
+    const channel = supabase.channel('global-email-tracking')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'emails' },
+        async (payload) => {
+          const newRecord = payload.new;
+          const oldRecord = payload.old;
+
+          // Only trigger if status CHANGED to 'opened' (avoid duplicates if update happens for other reasons)
+          // Also check if oldRecord exists (it should on Update)
+          if (newRecord.status === 'opened' && oldRecord.status !== 'opened') {
+
+            // Fetch Contact Name
+            let contactName = "Un Prospect";
+            if (newRecord.lead_id) {
+              const { data: contact } = await supabase
+                .from('contacts')
+                .select('first_name, last_name, email')
+                .eq('id', newRecord.lead_id)
+                .maybeSingle();
+
+              if (contact) {
+                const fullName = `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+                contactName = fullName || contact.email || "Un Prospect";
+              }
+            }
+
+            // 🔔 LA NOTIFICATION REQUESTED
+            toast.success("🎯 Cible touchée !", {
+              description: `${contactName} est en train de lire votre email : "${newRecord.subject || 'Campagne'}"`,
+              duration: 5000,
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [toast]);
+
+  return null;
+};
+// --------------------------------
 
 type View = 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar' | 'carousel';
 
@@ -243,6 +297,7 @@ const App: React.FC = () => {
 
   return (
     <ToastProvider>
+      <GlobalNotifications />
       <div className="flex h-screen bg-[#F0F4F8] font-sans text-slate-900 overflow-hidden font-jakarta bg-[url('https://res.cloudinary.com/dn67htk9u/image/upload/v1714995286/noise-light_csa6y2.png')] bg-repeat opacity-95">
 
         {/* Mobile Menu Overlay */}
