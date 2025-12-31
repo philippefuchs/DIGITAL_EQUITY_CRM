@@ -8,34 +8,64 @@ export default async function handler(req, res) {
         return res.status(400).send('Missing tracking ID');
     }
 
-    // Initialize Supabase with Service Role Key to bypass RLS
-    // Note: Vercel defines system env vars, make sure VITE_SUPABASE_URL is accessible or use standard SUPABASE_URL
+    // Initialize Supabase
     const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_KEY; // Fallback to anon key if service key missing, but RLS might block
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_KEY;
+
+    console.log("Tracking request for ID:", id);
+    console.log("Supabase URL present:", !!supabaseUrl);
+    console.log("Supabase Key present:", !!supabaseKey);
+
+    // CORS Headers (Critical for email tracking pixels served to Gmail/Outlook)
+    res.setHeader('Access-Control-Allow-Credentials', true);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
+    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+    // Handle OPTIONS request
+    if (req.method === 'OPTIONS') {
+        res.status(200).end();
+        return;
+    }
 
     if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        // Service Role Client (No Auth Persistence)
+        const supabase = createClient(supabaseUrl, supabaseKey, {
+            auth: {
+                autoRefreshToken: false,
+                persistSession: false
+            }
+        });
 
         try {
-            // Check current status first to not overwrite 'opened_at' if already opened
-            const { data: current } = await supabase
+            // Check current status
+            const { data: current, error: selectError } = await supabase
                 .from('emails')
                 .select('status')
                 .eq('tracking_id', id)
                 .single();
 
+            if (selectError) console.error("Select Error:", selectError);
+
             if (current && current.status !== 'opened') {
-                await supabase
+                const { error: updateError } = await supabase
                     .from('emails')
                     .update({
                         status: 'opened',
                         opened_at: new Date().toISOString()
                     })
                     .eq('tracking_id', id);
+
+                if (updateError) console.error("Update Error:", updateError);
+                else console.log("Successfully updated status to opened");
+            } else {
+                console.log("Already opened or not found");
             }
         } catch (error) {
-            console.error('Tracking Error:', error);
+            console.error('Tracking Logic Error:', error);
         }
+    } else {
+        console.error("Missing Environment Variables on Server");
     }
 
     // Return transparent 1x1 GIF
