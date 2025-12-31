@@ -140,7 +140,13 @@ const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, co
 
     const formatDate = (dateString: string) => {
         try {
-            return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: fr });
+            // Fix: Supabase sometimes returns naive timestamps (without Z) for 'timestamp' columns.
+            // In that case, browser interprets as Local, causing 1h shift. We force UTC.
+            const normalized = (dateString.endsWith('Z') || dateString.includes('+'))
+                ? dateString
+                : dateString + 'Z';
+
+            return formatDistanceToNow(new Date(normalized), { addSuffix: true, locale: fr });
         } catch (e) {
             return dateString;
         }
