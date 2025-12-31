@@ -23,45 +23,74 @@ const EmailSender: React.FC<EmailSenderProps> = ({ contactId, contactEmail, cont
     const [showTemplates, setShowTemplates] = useState(false);
 
     useEffect(() => {
-        const PREDEFINED: EmailTemplate[] = [
+        // Full definitions from TemplateManager to ensure consistency
+        const PREDEFINED_LIBRARY: EmailTemplate[] = [
             {
                 id: 'def_1',
-                name: 'Invitation Salon',
-                subject: 'Invitation : Venez nous rencontrer !',
-                body: "Bonjour {{Prénom}},\n\nNous serions ravis de vous accueillir sur notre stand lors du prochain salon. Ce serait l'occasion idéale pour échanger sur vos projets.\n\nCordialement,",
-                category: 'Prospect',
+                name: "Invitation Salon Professionnel (Standard)",
+                category: "Event",
+                subject: "Invitation : Venez nous rencontrer au prochain salon !",
+                body: `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;"><p>Bonjour {{Prénom}},</p><p>Nous sommes ravis de vous inviter à venir nous rencontrer lors du prochain <strong>salon professionnel</strong>.</p><p>C'est l'occasion idéale pour échanger sur vos projets au sein de <strong>{{company}}</strong>.</p><p>À très bientôt,<br>L'équipe LeadGen AI Pro</p></div>`,
                 createdAt: new Date().toISOString()
             },
             {
                 id: 'def_2',
-                name: 'Demande de RDV',
-                subject: 'Proposition de rendez-vous',
-                body: "Bonjour {{Prénom}},\n\nJe souhaiterais échanger avec vous concernant vos besoins. Auriez-vous des disponibilités la semaine prochaine ?\n\nBien à vous,",
-                category: 'Prospect',
+                name: "Suite à visite Stand (Relance Rapide)",
+                category: "Follow-up",
+                subject: "Ravi d'avoir échangé avec vous au salon !",
+                body: `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;"><p>Bonjour {{Prénom}},</p><p>Ce fut un plaisir d'échanger avec vous sur notre stand.</p><p>Comme convenu, je vous envoie les informations complémentaires.</p><p>Bien cordialement,<br>L'équipe LeadGen AI Pro</p></div>`,
                 createdAt: new Date().toISOString()
             },
             {
                 id: 'def_3',
-                name: 'Relance Simple',
-                subject: 'Re: Notre dernier échange',
-                body: "Bonjour {{Prénom}},\n\nJe me permets de revenir vers vous suite à mon précédent message. Avez-vous eu le temps d'y réfléchir ?\n\nCordialement,",
-                category: 'Relance',
+                name: "Prise de contact Partenariat",
+                category: "Partnership",
+                subject: "Opportunité de partenariat avec {{company}}",
+                body: `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;"><p>Bonjour {{Prénom}},</p><p>Je vois une réelle synergie possible entre nos deux organisations.</p><p>Seriez-vous ouvert à une discussion?</p><p>À votre disposition,<br>L'équipe LeadGen AI Pro</p></div>`,
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: 'def_4',
+                name: "Relance Prospect Douce",
+                category: "Sales",
+                subject: "Des nouvelles de votre projet ?",
+                body: `<div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;"><p>Bonjour {{Prénom}},</p><p>Je reviens vers vous suite à notre dernier échange.</p><p>Avez-vous eu le temps d'étudier notre proposition ?</p><p>Dans l'attente de votre retour,<br>L'équipe LeadGen AI Pro</p></div>`,
                 createdAt: new Date().toISOString()
             }
         ];
 
-        const stored = localStorage.getItem('leadgen_email_templates');
-        if (stored) {
+        const loadTemplates = async () => {
+            let loadedTemplates: EmailTemplate[] = [];
+
+            // 1. Try LocalStorage (synced by TemplateManager)
             try {
-                const custom = JSON.parse(stored);
-                setTemplates([...PREDEFINED, ...custom]);
-            } catch (e) {
-                console.error("Error loading templates", e);
-                setTemplates(PREDEFINED);
+                const stored = localStorage.getItem('leadgen_email_templates');
+                if (stored) {
+                    loadedTemplates = JSON.parse(stored);
+                }
+            } catch (e) { console.error(e); }
+
+            // 2. Try Supabase (Source of Truth)
+            if (supabase) {
+                try {
+                    const { data, error } = await supabase.from('email_templates').select('*');
+                    if (!error && data && data.length > 0) {
+                        loadedTemplates = data;
+                        // Update local cache
+                        localStorage.setItem('leadgen_email_templates', JSON.stringify(data));
+                    }
+                } catch (err) { console.error("Error loading templates from DB", err); }
             }
-        } else {
-            setTemplates(PREDEFINED);
-        }
+
+            // 3. Fallback to Predefined if empty
+            if (loadedTemplates.length === 0) {
+                loadedTemplates = PREDEFINED_LIBRARY;
+            }
+
+            setTemplates(loadedTemplates);
+        };
+
+        loadTemplates();
     }, []);
 
     const applyTemplate = (tpl: EmailTemplate) => {
