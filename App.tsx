@@ -633,10 +633,10 @@ const App: React.FC = () => {
                       <div className="space-y-12">
                         <div className="space-y-4">
                           <h4 className="text-amber-400 text-[12px] font-black uppercase tracking-widest italic flex items-center gap-3">
-                            <Send size={18} /> 05. Campagnes Email
+                            <Send size={18} /> 05. Méga-Campagnes & Tracking
                           </h4>
                           <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                            Créez des workflows en 4 étapes. Utilisez la <b className="text-white">Bibliothèque de Templates</b> pour gagner du temps. Définissez votre objectif (RDV, Salon, Intérêt) pour un suivi automatique précis.
+                            Créez des workflows en 4 étapes. Tout est tracké : <b className="text-white">Ouvertures</b>, clics et réponses. Chaque email envoyé via une campagne apparaît désormais dans l'historique du contact avec son statut en temps réel.
                           </p>
                         </div>
                         <div className="space-y-4">
@@ -644,15 +644,15 @@ const App: React.FC = () => {
                             <Sparkles size={18} /> 06. Intelligence Artificielle
                           </h4>
                           <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                            Le <b className="text-white">Scanneur IA</b> extrait les données des photos. <b className="text-white">IA Enrich</b> qualifie vos leads avec des infos contextuelles. Interaction mains-libres disponible.
+                            Le <b className="text-white">Scanneur IA</b> extrait les données des photos. <b className="text-white">IA Enrich</b> qualifie vos leads et <b className="text-white">IA Score</b> évalue leur potentiel (0-100%).
                           </p>
                         </div>
                         <div className="space-y-4">
                           <h4 className="text-slate-400 text-[12px] font-black uppercase tracking-widest italic flex items-center gap-3">
-                            <FileText size={18} /> 07. Historique Interactions
+                            <FileText size={18} /> 07. Timeline & Preuves
                           </h4>
                           <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                            Timeline visuelle de toutes les interactions (emails, appels, réunions, notes). Accessible depuis le profil de chaque contact pour un suivi complet.
+                            Timeline visuelle de toutes les interactions. <b className="text-emerald-400">NOUVEAU :</b> Voyez exactement QUAND vos emails sont lus grâce au Pixel Espion intégré (Indicateur "Lu" vert).
                           </p>
                         </div>
                         <div className="space-y-4">
@@ -660,7 +660,15 @@ const App: React.FC = () => {
                             <Calendar size={18} /> 08. Agenda & Rappels
                           </h4>
                           <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                            Planifiez vos rendez-vous et recevez des <b className="text-white">notifications intelligentes</b>. L'Agenda est partagé entre la vue Calendrier globale et les onglets dédiés dans chaque profil contact.
+                            Planifiez vos rendez-vous et recevez des <b className="text-white">notifications intelligentes</b>. Sync bidirectionnelle avec vos calendriers externes (Google/Outlook via iCal).
+                          </p>
+                        </div>
+                        <div className="space-y-4">
+                          <h4 className="text-fuchsia-400 text-[12px] font-black uppercase tracking-widest italic flex items-center gap-3">
+                            <Layers size={18} /> 09. Studio Carousel IA
+                          </h4>
+                          <p className="text-slate-400 text-sm font-medium leading-relaxed">
+                            Transformez n'importe quel sujet ou URL en un <b className="text-white">Carousel LinkedIn viral</b> (PDF). L'IA génère les accroches, le design et la structure pour maximiser l'engagement.
                           </p>
                         </div>
                       </div>
