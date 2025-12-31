@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Contact } from '../types';
-import { Users, RefreshCw, Upload, Plus, Search } from 'lucide-react';
+import { Users, RefreshCw, Upload, Plus, Search, Wand2 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import ContactList from './ContactList';
 import ContactFormModal from './ContactFormModal';
@@ -143,6 +143,41 @@ const ContactManager: React.FC<ContactManagerProps> = ({ category }) => {
     );
   }, [contacts, searchTerm]);
 
+  const [isScoringAll, setIsScoringAll] = useState(false);
+
+  const handleScoreAll = async () => {
+    if (contacts.length === 0) return;
+
+    // On ne score que ceux qui n'ont pas de score, score null, ou score 0
+    const contactsToScore = contacts.filter(c => c.score === undefined || c.score === null || c.score === 0);
+
+    if (contactsToScore.length === 0) {
+      showToast("Tous les contacts sont déjà scorés !", "success");
+      return;
+    }
+
+    if (!window.confirm(`Voulez-vous lancer l'analyse IA pour ${contactsToScore.length} contacts ? Cela peut prendre un peu de temps.`)) {
+      return;
+    }
+
+    setIsScoringAll(true);
+    let processed = 0;
+
+    for (const contact of contactsToScore) {
+      try {
+        await handleScoreContact(contact);
+        processed++;
+        // Petit délai pour éviter le rate limit
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error("Error scoring batch:", error);
+      }
+    }
+
+    setIsScoringAll(false);
+    showToast(`Terminé ! ${processed} contacts analysés.`, "success");
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-700 h-full flex flex-col">
       <div className="bg-white/80 backdrop-blur-2xl p-6 lg:p-10 rounded-[32px] lg:rounded-[48px] border border-white shadow-[0_20px_50px_rgba(0,0,0,0.04)] space-y-6 lg:space-y-8 shrink-0">
@@ -162,8 +197,16 @@ const ContactManager: React.FC<ContactManagerProps> = ({ category }) => {
           </div>
 
           <div className="flex items-center gap-2 lg:gap-3">
+            <button
+              onClick={handleScoreAll}
+              disabled={isScoringAll || loading}
+              className={`p-4 lg:p-5 bg-white border border-slate-100 text-slate-400 hover:text-violet-600 rounded-xl lg:rounded-2xl transition-all shadow-sm active:scale-90 ${isScoringAll ? 'animate-pulse text-violet-600' : ''}`}
+              title="Lancer Scoring IA Global"
+            >
+              {isScoringAll ? <RefreshCw size={18} lg:size={22} className="animate-spin" /> : <Wand2 size={18} lg:size={22} />}
+            </button>
             <button onClick={fetchContacts} className="p-4 lg:p-5 bg-white border border-slate-100 text-slate-400 hover:text-indigo-600 rounded-xl lg:rounded-2xl transition-all shadow-sm active:scale-90">
-              <RefreshCw size={18} lg:size={22} className={loading ? "animate-spin" : ""} />
+              <RefreshCw size={18} lg:size={22} className={loading && !isScoringAll ? "animate-spin" : ""} />
             </button>
             <button
               onClick={() => setShowImportModal(true)}
