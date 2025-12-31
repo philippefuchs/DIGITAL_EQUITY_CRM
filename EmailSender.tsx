@@ -157,7 +157,7 @@ const EmailSender: React.FC<EmailSenderProps> = ({ contactId, contactEmail, cont
     };
 
     return (
-        <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm relative">
+        <div className="bg-white p-6 rounded-[32px] border-4 border-red-500 shadow-sm relative">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                     <Send size={16} /> Nouveau Message
