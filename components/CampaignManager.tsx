@@ -330,18 +330,14 @@ const CampaignManager: React.FC = () => {
       // 1. Create Email Record first to get ID
       if (supabase) {
         try {
-          // Try to format lead ID. If contact.id is numeric or uuid string.
-          const leadId = String(c.id).match(/^[0-9a-fA-F-]{36}$/) ? c.id : undefined; // Only link if proper UUID, otherwise it may fail FK if not careful.
-          // Actually, the leads table uses UUID or Int? Let's check. 
-          // Assuming leads table uses UUIDs as typical in Supabase, but here c.id might be 'new' or number.
-          // Safest is to try to insert with what we have if it matches format, or omit (so it's just a tracked email without strict link if ID mismatch).
-          // However, for "History" to work, we need the link.
-          // We will attempt to insert. If it fails due to FK, we'll proceed without tracking just to be safe not to break sending.
+          // REMOVED STRICT REGEX: Trust c.id. If it fails FK, catch block captures it.
+          // This ensures we attempt tracking even if ID format varies.
+          const leadId = c.id;
 
           const { data: emailRecord, error: dbError } = await supabase
             .from('emails')
             .insert([{
-              lead_id: c.id,
+              lead_id: leadId,
               status: 'sent',
               subject: payload.template_params.subject,
               body: payload.template_params.message
@@ -349,16 +345,18 @@ const CampaignManager: React.FC = () => {
             .select()
             .single();
 
-          if (!dbError && emailRecord) {
+          if (dbError) {
+            console.error("Tracking Insert Error:", dbError);
+          } else if (emailRecord) {
             const baseUrl = 'https://digital-equity-crm.vercel.app';
-            const trackingUrl = `${baseUrl} /api/track ? id = ${emailRecord.tracking_id} `;
-            const pixelHtml = `< img src = "${trackingUrl}" width = "1" height = "1" style = "border:0;" alt = "" /> `;
+            const trackingUrl = `${baseUrl}/api/track?id=${emailRecord.tracking_id}`;
+            const pixelHtml = `<img src="${trackingUrl}" width="1" height="1" style="border:0;" alt="" />`;
 
             // Inject into params
             payload.template_params.tracking_pixel = pixelHtml;
           }
         } catch (err) {
-          console.warn("Tracking failed for this recipient, sending anyway", err);
+          console.error("Tracking Logic Failed completely:", err);
         }
       }
       // -------------------------------
