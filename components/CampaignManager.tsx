@@ -107,9 +107,43 @@ const CampaignManager: React.FC = () => {
       })));
 
       // Load templates from Library
+      const PREDEFINED: EmailTemplate[] = [
+        {
+          id: 'def_1',
+          name: 'Invitation Salon',
+          subject: 'Invitation : Venez nous rencontrer !',
+          body: "Bonjour {{Prénom}},\n\nNous serions ravis de vous accueillir sur notre stand lors du prochain salon. Ce serait l'occasion idéale pour échanger sur vos projets.\n\nCordialement,",
+          category: 'Prospect',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'def_2',
+          name: 'Demande de RDV',
+          subject: 'Proposition de rendez-vous',
+          body: "Bonjour {{Prénom}},\n\nJe souhaiterais échanger avec vous concernant vos besoins. Auriez-vous des disponibilités la semaine prochaine ?\n\nBien à vous,",
+          category: 'Prospect',
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: 'def_3',
+          name: 'Relance Simple',
+          subject: 'Re: Notre dernier échange',
+          body: "Bonjour {{Prénom}},\n\nJe me permets de revenir vers vous suite à mon précédent message. Avez-vous eu le temps d'y réfléchir ?\n\nCordialement,",
+          category: 'Relance',
+          createdAt: new Date().toISOString()
+        }
+      ];
+
       const stored = localStorage.getItem('leadgen_email_templates');
       if (stored) {
-        setLibraryTemplates(JSON.parse(stored));
+        try {
+          const custom = JSON.parse(stored);
+          setLibraryTemplates([...PREDEFINED, ...custom]);
+        } catch {
+          setLibraryTemplates(PREDEFINED);
+        }
+      } else {
+        setLibraryTemplates(PREDEFINED);
       }
     } catch (err: any) {
       console.error("Load Error:", err);
@@ -685,12 +719,36 @@ const CampaignManager: React.FC = () => {
                     </div>
                     <div className="flex justify-between items-center px-6">
                       <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest">Corps du message (Variable : {"{{Prénom}}"})</label>
-                      <button
-                        onClick={() => setShowTemplateLibrary(!showTemplateLibrary)}
-                        className="flex items-center gap-2 text-[10px] font-black uppercase italic text-indigo-600 hover:text-indigo-700 transition-colors"
-                      >
-                        <BookOpen size={14} /> {showTemplateLibrary ? "Fermer la Bibliothèque" : "Choisir un Template"}
-                      </button>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={() => {
+                            if (!newCampaignData.subject || !newCampaignData.template) {
+                              alert("Remplissez le sujet et le message d'abord");
+                              return;
+                            }
+                            const newTpl: EmailTemplate = {
+                              id: crypto.randomUUID(),
+                              name: newCampaignData.name || "Sans titre",
+                              subject: newCampaignData.subject,
+                              body: newCampaignData.template,
+                              category: 'Custom'
+                            };
+                            const newList = [...libraryTemplates, newTpl];
+                            setLibraryTemplates(newList);
+                            localStorage.setItem('leadgen_email_templates', JSON.stringify(newList));
+                            alert("Modèle sauvegardé !");
+                          }}
+                          className="flex items-center gap-2 text-[10px] font-black uppercase italic text-emerald-600 hover:text-emerald-700 transition-colors"
+                        >
+                          <Save size={14} /> Sauvegarder en Modèle
+                        </button>
+                        <button
+                          onClick={() => setShowTemplateLibrary(!showTemplateLibrary)}
+                          className="flex items-center gap-2 text-[10px] font-black uppercase italic text-indigo-600 hover:text-indigo-700 transition-colors"
+                        >
+                          <BookOpen size={14} /> {showTemplateLibrary ? "Fermer la Bibliothèque" : "Choisir un Template"}
+                        </button>
+                      </div>
                     </div>
 
                     {showTemplateLibrary && (libraryTemplates.length > 0) && (

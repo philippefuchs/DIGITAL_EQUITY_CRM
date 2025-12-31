@@ -23,11 +23,44 @@ const EmailSender: React.FC<EmailSenderProps> = ({ contactId, contactEmail, cont
     const [showTemplates, setShowTemplates] = useState(false);
 
     useEffect(() => {
+        const PREDEFINED: EmailTemplate[] = [
+            {
+                id: 'def_1',
+                name: 'Invitation Salon',
+                subject: 'Invitation : Venez nous rencontrer !',
+                body: "Bonjour {{Prénom}},\n\nNous serions ravis de vous accueillir sur notre stand lors du prochain salon. Ce serait l'occasion idéale pour échanger sur vos projets.\n\nCordialement,",
+                category: 'Prospect',
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: 'def_2',
+                name: 'Demande de RDV',
+                subject: 'Proposition de rendez-vous',
+                body: "Bonjour {{Prénom}},\n\nJe souhaiterais échanger avec vous concernant vos besoins. Auriez-vous des disponibilités la semaine prochaine ?\n\nBien à vous,",
+                category: 'Prospect',
+                createdAt: new Date().toISOString()
+            },
+            {
+                id: 'def_3',
+                name: 'Relance Simple',
+                subject: 'Re: Notre dernier échange',
+                body: "Bonjour {{Prénom}},\n\nJe me permets de revenir vers vous suite à mon précédent message. Avez-vous eu le temps d'y réfléchir ?\n\nCordialement,",
+                category: 'Relance',
+                createdAt: new Date().toISOString()
+            }
+        ];
+
         const stored = localStorage.getItem('leadgen_email_templates');
         if (stored) {
             try {
-                setTemplates(JSON.parse(stored));
-            } catch (e) { console.error("Error loading templates", e); }
+                const custom = JSON.parse(stored);
+                setTemplates([...PREDEFINED, ...custom]);
+            } catch (e) {
+                console.error("Error loading templates", e);
+                setTemplates(PREDEFINED);
+            }
+        } else {
+            setTemplates(PREDEFINED);
         }
     }, []);
 
