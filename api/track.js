@@ -47,6 +47,11 @@ export default async function handler(req, res) {
 
             if (selectError) console.error("Select Error:", selectError);
 
+
+            if (current) {
+                console.log(`Tracking ID found. Status: ${current.status}, Lead ID: ${current.lead_id}`);
+            }
+
             if (current && current.status !== 'opened') {
                 // 1. Update Email Status
                 const { error: updateError } = await supabase
@@ -93,6 +98,8 @@ export default async function handler(req, res) {
                     } catch (scoreErr) {
                         console.error("Score Logic Error:", scoreErr);
                     }
+                } else {
+                    console.warn("Skipping Score Boost: No lead_id found for this email record.");
                 }
 
             } else {
