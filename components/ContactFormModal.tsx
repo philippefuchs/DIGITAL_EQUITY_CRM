@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Contact } from '../types';
 import { supabase } from '../services/supabase';
-import { UserPlus, X, Info, Clock, Calendar, User, Building2, Mail, Target, AlignLeft, Plus, RefreshCw, Check, Zap } from 'lucide-react';
+import { UserPlus, X, Info, Clock, Calendar, User, Building2, Mail, Target, AlignLeft, Plus, RefreshCw, Check, Zap, Send } from 'lucide-react';
 import InteractionTimeline from './InteractionTimeline';
+import EmailSender from './EmailSender';
+import EmailHistory from './EmailHistory';
 import { useToast } from './ToastProvider';
 
 interface ContactFormModalProps {
@@ -15,7 +17,7 @@ interface ContactFormModalProps {
 
 const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, contact, category, onSuccess }) => {
     const { showToast } = useToast();
-    const [activeTab, setActiveTab] = useState<'info' | 'history' | 'agenda'>('info');
+    const [activeTab, setActiveTab] = useState<'info' | 'history' | 'agenda' | 'email'>('info');
     const [contactEvents, setContactEvents] = useState<any[]>([]);
     const [loadingEvents, setLoadingEvents] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
@@ -171,7 +173,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                 {contact.id !== 'new' && (
                     <div className="px-8 md:px-10 bg-white/80 backdrop-blur-md border-b border-slate-100">
                         <div className="flex gap-2">
-                            {['info', 'history', 'agenda'].map((tab) => (
+                            {['info', 'history', 'email', 'agenda'].map((tab) => (
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab as any)}
@@ -183,6 +185,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                                     <div className="flex items-center gap-2">
                                         {tab === 'info' && <Info size={16} />}
                                         {tab === 'history' && <Clock size={16} />}
+                                        {tab === 'email' && <Mail size={16} />}
                                         {tab === 'agenda' && <Calendar size={16} />}
                                         {tab.charAt(0).toUpperCase() + tab.slice(1)}
                                     </div>
@@ -345,6 +348,29 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                                 <button className="text-indigo-600 font-black text-[10px] uppercase tracking-widest underline italic">Fixer un RDV maintenant</button>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {activeTab === 'email' && (
+                    <div className="flex-1 overflow-y-auto p-6 md:p-12 space-y-8 custom-scrollbar">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 h-full">
+                            <div className="space-y-6">
+                                <h4 className="text-xl font-black uppercase italic text-slate-900 mb-6">Nouveau Message</h4>
+                                <EmailSender
+                                    contactId={contact.id}
+                                    contactEmail={contact.email}
+                                    contactName={`${contact.firstName} ${contact.lastName}`}
+                                />
+                            </div>
+                            <div className="space-y-6 h-full flex flex-col">
+                                <h4 className="text-xl font-black uppercase italic text-slate-900 mb-6 flex items-center gap-3">
+                                    Historique <span className="px-3 py-1 bg-slate-100 text-slate-500 rounded-full text-[10px] tracking-widest">Tracking</span>
+                                </h4>
+                                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                    <EmailHistory contactId={contact.id} />
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 )}
 

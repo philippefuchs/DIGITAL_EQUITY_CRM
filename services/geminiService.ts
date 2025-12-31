@@ -19,7 +19,13 @@ export const extractContactFromImage = async (base64Image: string) => {
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
-          { text: "Analyse cette carte de visite. Extrais : Prénom, Nom, Poste, Société, Email, Téléphone, Site Web, LinkedIn. Retourne un JSON uniquement." }
+          {
+            text: `Analyse cette carte de visite avec une grande attention aux détails. Extrais les informations de contact.
+          POINTS CRITIQUES :
+          1. Cherche activement l'adresse EMAIL (contient '@'). Elle est souvent précédée de 'Mail:', 'E-mail:', ou située près du téléphone.
+          2. Ne confonds pas le site web et l'email.
+          3. Extrais : Prénom, Nom, Poste, Société, Email, Téléphone, Site Web, LinkedIn.
+          Retourne un JSON uniquement.` }
         ]
       },
       config: {
