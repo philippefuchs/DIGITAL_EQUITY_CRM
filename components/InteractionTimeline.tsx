@@ -4,6 +4,7 @@ import {
     MessageSquare, UserCheck, DollarSign, Edit2, Trash2, RefreshCw
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { useToast } from './ToastProvider';
 
 interface Interaction {
     id: string;
@@ -30,6 +31,7 @@ const INTERACTION_TYPES = [
 ];
 
 const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, contactName }) => {
+    const { showToast } = useToast();
     const [interactions, setInteractions] = useState<Interaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
@@ -75,8 +77,12 @@ const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, co
     };
 
     const handleAddInteraction = async () => {
-        if (!supabase || !newInteraction.content.trim()) {
-            alert('Veuillez saisir un contenu');
+        if (!supabase) {
+            showToast('Erreur: Base de données non connectée', 'error');
+            return;
+        }
+        if (!newInteraction.content.trim()) {
+            showToast('Veuillez saisir un contenu', 'error');
             return;
         }
 
@@ -98,13 +104,16 @@ const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, co
             setNewInteraction({ type: 'note', content: '' });
         } catch (err: any) {
             console.error('Error adding interaction:', err);
-            alert(`Erreur: ${err.message}`);
+            showToast(`Erreur: ${err.message}`, 'error');
         }
     };
 
     const handleDeleteInteraction = async (interactionId: string) => {
         if (!confirm('Supprimer cette interaction ?')) return;
-        if (!supabase) return;
+        if (!supabase) {
+            showToast('Erreur: Base de données non connectée', 'error');
+            return;
+        }
 
         try {
             const id = /^\d+$/.test(interactionId) ? parseInt(interactionId, 10) : interactionId;
@@ -119,7 +128,7 @@ const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, co
             await loadInteractions();
         } catch (err: any) {
             console.error('Error deleting interaction:', err);
-            alert(`Erreur: ${err.message}`);
+            showToast(`Erreur: ${err.message}`, 'error');
         }
     };
 
@@ -217,7 +226,8 @@ const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, co
                                             </div>
                                             <button
                                                 onClick={() => handleDeleteInteraction(interaction.id)}
-                                                className="opacity-0 group-hover:opacity-100 p-2 hover:bg-rose-50 text-rose-600 rounded-lg transition-all"
+                                                className="p-2 text-slate-300 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-all"
+                                                title="Supprimer la note"
                                             >
                                                 <Trash2 size={16} />
                                             </button>
@@ -264,8 +274,8 @@ const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, co
                                                 key={type.id}
                                                 onClick={() => setNewInteraction({ ...newInteraction, type: type.id as any })}
                                                 className={`p-4 rounded-[16px] border-2 transition-all flex flex-col items-center gap-2 ${isSelected
-                                                        ? `bg-${type.color}-50 border-${type.color}-500`
-                                                        : 'bg-slate-50 border-slate-200 hover:border-slate-300'
+                                                    ? `bg-${type.color}-50 border-${type.color}-500`
+                                                    : 'bg-slate-50 border-slate-200 hover:border-slate-300'
                                                     }`}
                                             >
                                                 <Icon size={20} className={isSelected ? `text-${type.color}-600` : 'text-slate-400'} />
