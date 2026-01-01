@@ -28,27 +28,24 @@ export async function POST(req: Request) {
     // On récupère toutes les infos envoyées par l'extension
     const { name, job, linkedinUrl, email, photoUrl } = body;
 
-    // (Optionnel) Séparation Prénom / Nom
-    // const nameParts = name.split(' ');
-    // const firstName = nameParts[0];
-
     // 4. Insertion dans Supabase
     const { data, error } = await supabase
       .from('leads')
       .upsert({
-        contact_name: name,         // Vérifiez que c'est bien le nom de votre colonne
-        job_title: job,             // Vérifiez le nom de la colonne
+        contact_name: name,         
+        job_title: job,             
         linkedin_profile: linkedinUrl,
-        email: email || null,       // Si pas d'email, on met null
-        image_url: photoUrl || null, // On sauvegarde la photo !
+        email: email || null,       
+        image_url: photoUrl || null, // On sauvegarde la photo ici !
         source: 'chrome_extension',
         status: 'new_lead',
         
-        // ⚠️ REMETTEZ VOTRE ID UTILISATEUR ICI SI VOUS ÊTES EN TEST
-        // user_id: 'votre-id-supabase-ici', 
+        // ⚠️ TRES IMPORTANT : Mettez votre ID ici pour le test
+        // Allez dans Supabase > Authentication > Users pour copier votre UID
+        user_id: 'votre-uuid-supabase-a-coller-ici', 
         
       }, { 
-        onConflict: 'linkedin_profile', // Evite les doublons
+        onConflict: 'linkedin_profile', // Evite les doublons si le profil existe déjà
         ignoreDuplicates: true 
       })
       .select();
