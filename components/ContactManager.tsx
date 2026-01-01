@@ -56,6 +56,7 @@ const ContactManager: React.FC<ContactManagerProps> = ({ category }) => {
             linkedinUrl: c.linkedin_url || c.linkedinUrl || '',
             website: c.website || c.site_web || '',
             sector: (c.sector || c.secteur || '').toString().trim(),
+            photoUrl: c.photo_url || c.photoUrl || '',
             address: (c.address || c.adresse || '').toString().trim(),
             notes: (c.notes || '').toString().trim(),
             tags: Array.isArray(c.tags) ? c.tags : (c.tags ? String(c.tags).split(',').map((t: any) => t.trim()).filter((t: any) => t) : []),

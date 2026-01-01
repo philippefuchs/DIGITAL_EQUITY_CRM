@@ -17,6 +17,7 @@ export interface Contact {
   email: string;
   phone: string;
   linkedinUrl: string;
+  photoUrl?: string; // Added for Chrome extension sync
   address?: string;
   sector?: string;
   website?: string;

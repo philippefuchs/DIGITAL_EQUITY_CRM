@@ -45,8 +45,12 @@ const ContactList: React.FC<ContactListProps> = ({ contacts, themeColor, onEdit,
                     )}
                     <div className="p-8 flex-1">
                         <div className="flex justify-between items-start mb-6">
-                            <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center border-4 border-slate-50 bg-slate-50 text-${themeColor}-500 shadow-inner group-hover:scale-110 transition-all duration-500`}>
-                                <User size={30} strokeWidth={2.5} />
+                            <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center border-4 border-slate-50 bg-slate-50 text-${themeColor}-500 shadow-inner group-hover:scale-110 transition-all duration-500 overflow-hidden`}>
+                                {c.photoUrl ? (
+                                    <img src={c.photoUrl} alt="" className="w-full h-full object-cover" />
+                                ) : (
+                                    <User size={30} strokeWidth={2.5} />
+                                )}
                             </div>
                             <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.2em] border italic ${['Active', 'Closed', 'Interested'].includes(c.status)
                                 ? `bg-${themeColor}-500 text-white border-${themeColor}-600`
