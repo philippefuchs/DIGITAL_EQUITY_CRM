@@ -108,6 +108,16 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                     email: payload.email,
                     company: payload.company,
                     category: payload.category,
+                    // ✅ Add missing fields to fallback to ensure they are saved
+                    title: payload.title,
+                    phone: payload.phone,
+                    linkedin_url: payload.linkedin_url,
+                    address: payload.address,
+                    website: payload.website,
+                    sector: payload.sector,
+                    status: payload.status,
+                    tags: payload.tags,
+                    notes: payload.notes,
                     data: { ...payload }
                 };
 
