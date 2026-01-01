@@ -76,7 +76,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
             status: fd.get('status')?.toString() || (category === 'member' ? 'Active' : 'New'),
             tags: tagsArray,
             notes: fd.get('notes')?.toString().trim() || null,
-            category: category,
+            category: fd.get('category')?.toString() || category, // ✅ Read category from form
         };
 
         const attemptSave = async (payload: any): Promise<{ success: boolean; error?: any }> => {
@@ -286,15 +286,22 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                                 </div>
                                 <div className="grid grid-cols-2 gap-6">
                                     <div className="space-y-2">
+                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-4">Type de Profil</label>
+                                        <select name="category" defaultValue={contact.category || category} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-black italic text-xs uppercase cursor-pointer">
+                                            <option value="prospect">PROSPECT</option>
+                                            <option value="member">MEMBRE</option>
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
                                         <label className="text-[9px] font-black uppercase text-slate-400 ml-4">Statut CRM</label>
                                         <select name="status" defaultValue={contact.status || (category === 'member' ? 'Active' : 'New')} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-black italic text-xs uppercase cursor-pointer">
                                             {['New', 'Contacted', 'Interested', 'Closed', 'Active', 'Lost'].map(s => <option key={s} value={s}>{s}</option>)}
                                         </select>
                                     </div>
-                                    <div className="space-y-2">
-                                        <label className="text-[9px] font-black uppercase text-slate-400 ml-4">Tags (virgules)</label>
-                                        <input name="tags" defaultValue={Array.isArray(contact.tags) ? contact.tags.join(', ') : contact.tags} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-black italic text-xs uppercase" placeholder="URGENT, SaaS" />
-                                    </div>
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-[9px] font-black uppercase text-slate-400 ml-4">Tags (virgules)</label>
+                                    <input name="tags" defaultValue={Array.isArray(contact.tags) ? contact.tags.join(', ') : contact.tags} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-black italic text-xs uppercase" placeholder="URGENT, SaaS" />
                                 </div>
                             </div>
                         </div>
