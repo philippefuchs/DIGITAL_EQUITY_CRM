@@ -1,11 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req, res) {
-    // CORS Headers
+    // CONFIGURATION DES HEADERS (CORS)
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+    res.setHeader(
+        'Access-Control-Allow-Headers',
+        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
+    );
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
@@ -14,7 +17,7 @@ export default async function handler(req, res) {
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // 1. RÉCUPÉRATION DES NOUVEAUX CHAMPS
+        // 1. RÉCUPÉRATION DES DONNÉES ENVOYÉES PAR L'EXTENSION
         const {
             name,
             job,
@@ -22,19 +25,20 @@ export default async function handler(req, res) {
             email,
             photoUrl,
             company,
-            address, // ✅ Nouveau
-            website  // ✅ Nouveau
+            address, // ✅ On récupère l'adresse
+            website  // ✅ On récupère le site web
         } = req.body || {};
 
-        // 2. PRÉPARATION
+        // 2. DÉCOUPAGE PRÉNOM / NOM
         const nameParts = (name || "").split(' ');
         const firstName = nameParts[0];
         const lastName = nameParts.slice(1).join(' ') || "";
 
+        // 3. NETTOYAGE PHOTO
         let finalPhotoUrl = photoUrl;
         if (photoUrl && photoUrl.startsWith('data:image')) finalPhotoUrl = null;
 
-        // 3. INSERTION EN BASE
+        // 4. INSERTION EN BASE DE DONNÉES
         const { data, error } = await supabase
             .from('contacts')
             .upsert({
@@ -44,9 +48,10 @@ export default async function handler(req, res) {
                 title: job,
                 company: company,
 
-                email: email || null,     // ✅ L'email sera bien sauvegardé ici
-                address: address || null, // ✅ Ajout de l'adresse
-                website: website || null, // ✅ Ajout du site web
+                // ✅ C'est ici que l'enregistrement se fait
+                email: email || null,
+                address: address || null,
+                website: website || null,
 
                 photo_url: finalPhotoUrl,
                 data: {
@@ -55,7 +60,7 @@ export default async function handler(req, res) {
                 }
             }, {
                 onConflict: 'linkedin_url',
-                ignoreDuplicates: false // On met à jour si ça existe déjà
+                ignoreDuplicates: false // false = on met à jour les infos si le contact existe déjà
             })
             .select();
 
