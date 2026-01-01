@@ -1,14 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
 export default async function handler(req, res) {
-    // CONFIGURATION DES HEADERS (CORS)
+    // CORS Headers
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-    res.setHeader(
-        'Access-Control-Allow-Headers',
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-    );
+    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
     if (req.method === 'OPTIONS') return res.status(200).end();
 
@@ -17,50 +14,71 @@ export default async function handler(req, res) {
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // 1. RÉCUPÉRATION DES DONNÉES ENVOYÉES PAR L'EXTENSION
+        // 1. RECEPTION DES DONNÉES
         const {
-            name,
-            job,
-            linkedinUrl,
-            email,
-            photoUrl,
-            company,
-            address, // ✅ On récupère l'adresse
-            website  // ✅ On récupère le site web
+            name, job, linkedinUrl, email, photoUrl, company, address, website
         } = req.body || {};
 
-        // 2. DÉCOUPAGE PRÉNOM / NOM
+        // 2. PRÉPARATION BASIQUE
         const nameParts = (name || "").split(' ');
         const firstName = nameParts[0];
         const lastName = nameParts.slice(1).join(' ') || "";
 
-        // 3. NETTOYAGE PHOTO
         let finalPhotoUrl = photoUrl;
         if (photoUrl && photoUrl.startsWith('data:image')) finalPhotoUrl = null;
 
-        // 4. INSERTION EN BASE DE DONNÉES
+        // --- 🚨 LA SÉCURITÉ ANTI-ÉCRASEMENT ---
+
+        // A. On regarde si le contact existe déjà
+        const { data: existingContact } = await supabase
+            .from('contacts')
+            .select('email, address, website, photo_url')
+            .eq('linkedin_url', linkedinUrl)
+            .single();
+
+        // B. On décide quelle donnée garder
+        // Logique : Si la nouvelle donnée est vide ET que l'ancienne existe, on garde l'ancienne.
+
+        const safeEmail = (email && email.trim() !== "")
+            ? email
+            : (existingContact?.email || null);
+
+        const safeAddress = (address && address.trim() !== "")
+            ? address
+            : (existingContact?.address || null);
+
+        const safeWebsite = (website && website.trim() !== "")
+            ? website
+            : (existingContact?.website || null);
+
+        // Pour la photo, on garde l'ancienne si la nouvelle est vide ou nulle
+        const safePhoto = finalPhotoUrl || existingContact?.photo_url || null;
+
+
+        // 3. INSERTION / MISE À JOUR (UPSERT)
         const { data, error } = await supabase
             .from('contacts')
             .upsert({
-                linkedin_url: linkedinUrl, // La clé unique
+                linkedin_url: linkedinUrl,
                 first_name: firstName,
                 last_name: lastName,
                 title: job,
                 company: company,
 
-                // ✅ C'est ici que l'enregistrement se fait
-                email: email || null,
-                address: address || null,
-                website: website || null,
+                // ✅ On injecte nos valeurs sécurisées
+                email: safeEmail,
+                address: safeAddress,
+                website: safeWebsite,
+                photo_url: safePhoto,
 
-                photo_url: finalPhotoUrl,
                 data: {
                     source: 'chrome_extension',
-                    imported_at: new Date().toISOString()
+                    imported_at: new Date().toISOString(),
+                    last_updated: new Date().toISOString()
                 }
             }, {
                 onConflict: 'linkedin_url',
-                ignoreDuplicates: false // false = on met à jour les infos si le contact existe déjà
+                ignoreDuplicates: false // On met à jour, mais avec les valeurs intelligentes
             })
             .select();
 
