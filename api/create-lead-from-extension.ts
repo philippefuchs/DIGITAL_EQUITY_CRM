@@ -1,16 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Initialisation de Supabase
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-// C'est la syntaxe standard pour les "Vercel Functions" (pas Next.js)
 export default async function handler(req, res) {
-  
-  // 1. FORCER LES HEADERS CORS (Sécurité)
-  // On les met ici aussi pour être sûr que le serveur répond toujours
+  // 1. D'ABORD : On répond aux règles de sécurité (CORS)
+  // On le fait avant tout le reste pour être sûr que ça part.
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -20,21 +12,32 @@ export default async function handler(req, res) {
   );
 
   // 2. GESTION DU "PREFLIGHT" (La demande de permission de Chrome)
+  // Si Chrome demande "Je peux venir ?", on répond "Oui" tout de suite.
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
-  // 3. Vérifier que c'est bien une requête POST
+  // 3. Vérification de la méthode
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
   try {
-    // Sur Vercel Functions, req.body est déjà un objet JSON
+    // 4. Initialisation de Supabase (À L'INTÉRIEUR du try/catch)
+    // C'est ici que ça plantait avant si les clés manquaient.
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+        throw new Error("Les clés Supabase (URL ou KEY) sont manquantes sur Vercel !");
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // 5. Récupération des données
     const { name, job, linkedinUrl, email, photoUrl } = req.body;
 
-    // 4. Envoi vers Supabase
+    // 6. Envoi vers Supabase
     const { data, error } = await supabase
       .from('leads')
       .upsert({
@@ -45,8 +48,7 @@ export default async function handler(req, res) {
         image_url: photoUrl || null,
         source: 'chrome_extension',
         status: 'new_lead',
-        
-        // ⚠️ REMETTEZ VOTRE ID UTILISATEUR ICI
+        //⚠️ REMETTEZ VOTRE ID UTILISATEUR ICI
         user_id: 'votre-uuid-supabase-a-coller-ici', 
       }, { 
         onConflict: 'linkedin_profile',
@@ -56,11 +58,11 @@ export default async function handler(req, res) {
 
     if (error) throw error;
 
-    // Succès !
     return res.status(200).json({ success: true, lead: data });
 
   } catch (error) {
     console.error('Erreur API:', error);
+    // On renvoie l'erreur au lieu de laisser le serveur planter
     return res.status(500).json({ error: error.message });
   }
 }
