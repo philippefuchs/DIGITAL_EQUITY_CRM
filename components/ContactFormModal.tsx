@@ -152,8 +152,12 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
             <div className="bg-[#F8FAFC] w-full max-w-5xl rounded-[60px] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] border-8 border-white">
                 <div className="p-8 md:p-10 border-b border-slate-100 flex justify-between items-center bg-white/80 backdrop-blur-md sticky top-0 z-20">
                     <div className="flex items-center gap-6 md:gap-8">
-                        <div className={`w-16 h-16 md:w-24 md:h-24 rounded-[24px] md:rounded-[36px] flex items-center justify-center shadow-2xl text-white rotate-6 bg-gradient-to-tr ${gradientClass}`}>
-                            <UserPlus size={32} className="md:w-12 md:h-12" strokeWidth={3} />
+                        <div className={`w-16 h-16 md:w-24 md:h-24 rounded-[24px] md:rounded-[36px] flex items-center justify-center shadow-2xl text-white rotate-6 bg-gradient-to-tr ${gradientClass} overflow-hidden`}>
+                            {contact.photoUrl ? (
+                                <img src={contact.photoUrl} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                                <UserPlus size={32} className="md:w-12 md:h-12" strokeWidth={3} />
+                            )}
                         </div>
                         <div className="space-y-1">
                             <h3 className="text-xl md:text-3xl font-black italic uppercase tracking-tighter text-slate-900 leading-none">
