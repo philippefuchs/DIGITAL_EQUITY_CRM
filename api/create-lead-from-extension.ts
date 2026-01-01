@@ -21,12 +21,23 @@ export default async function handler(req, res) {
 
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        // --- PRÉPARATION ---
-        const { name, job, linkedinUrl, email, photoUrl } = req.body || {};
+        // --- RÉCUPÉRATION ---
+        // On récupère aussi 'company' maintenant
+        const { name, job, linkedinUrl, email, photoUrl, company } = req.body || {};
 
+        // --- NETTOYAGE DONNÉES ---
+
+        // 1. Découpage du Nom
         const nameParts = (name || "").split(' ');
         const firstName = nameParts[0];
         const lastName = nameParts.slice(1).join(' ') || "";
+
+        // 2. Filtre Anti-Image Fantôme 👻
+        let finalPhotoUrl = photoUrl;
+        // Si l'URL commence par "data:image", c'est le pixel vide de LinkedIn -> On met NULL
+        if (photoUrl && photoUrl.startsWith('data:image')) {
+            finalPhotoUrl = null;
+        }
 
         // --- INSERTION ---
         const { data, error } = await supabase
@@ -34,14 +45,14 @@ export default async function handler(req, res) {
             .upsert({
                 first_name: firstName,
                 last_name: lastName,
-                title: job,
+
+                title: job,              // Poste
+                company: company,        // ✅ AJOUT DE L'ENTREPRISE ICI (vérifiez que votre extension envoie bien 'company')
+
                 email: email || null,
                 linkedin_url: linkedinUrl,
+                photo_url: finalPhotoUrl, // ✅ On utilise l'URL nettoyée
 
-                // ✅ ON UTILISE LA NOUVELLE COLONNE
-                photo_url: photoUrl || null,
-
-                // On garde 'data' pour les infos techniques si besoin
                 data: {
                     source: 'chrome_extension',
                     imported_at: new Date().toISOString()
