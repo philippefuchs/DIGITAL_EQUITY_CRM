@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Contact } from '../types';
 import { User, Trash2, Edit2, Database, Wand2 } from 'lucide-react';
+import ContactAvatar from './ContactAvatar';
 
 interface ContactListProps {
     contacts: Contact[];
@@ -45,13 +46,11 @@ const ContactList: React.FC<ContactListProps> = ({ contacts, themeColor, onEdit,
                     )}
                     <div className="p-8 flex-1">
                         <div className="flex justify-between items-start mb-6">
-                            <div className={`w-16 h-16 rounded-[24px] flex items-center justify-center border-4 border-slate-50 bg-slate-50 text-${themeColor}-500 shadow-inner group-hover:scale-110 transition-all duration-500 overflow-hidden`}>
-                                {c.photoUrl ? (
-                                    <img src={c.photoUrl} alt="" className="w-full h-full object-cover" />
-                                ) : (
-                                    <User size={30} strokeWidth={2.5} />
-                                )}
-                            </div>
+                            <ContactAvatar
+                                photoUrl={c.photoUrl}
+                                themeColor={themeColor}
+                                size="md"
+                            />
                             <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.2em] border italic ${['Active', 'Closed', 'Interested'].includes(c.status)
                                 ? `bg-${themeColor}-500 text-white border-${themeColor}-600`
                                 : `bg-white text-slate-400 border-slate-100`
