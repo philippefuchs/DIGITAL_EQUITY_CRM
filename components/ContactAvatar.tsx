@@ -12,6 +12,10 @@ interface ContactAvatarProps {
 const ContactAvatar: React.FC<ContactAvatarProps> = ({ photoUrl, themeColor, size = 'md', isModal = false }) => {
     const [imageError, setImageError] = useState(false);
 
+    React.useEffect(() => {
+        setImageError(false);
+    }, [photoUrl]);
+
     // Size classes mapping
     const sizeClasses = {
         sm: 'w-10 h-10 rounded-xl',
@@ -29,7 +33,21 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({ photoUrl, themeColor, siz
 
     const containerClasses = `flex items-center justify-center border-4 border-slate-50 bg-slate-50 text-${themeColor}-500 shadow-inner overflow-hidden transition-all duration-500 ${sizeClasses[size]} ${!isModal ? 'group-hover:scale-110' : ''} ${isModal ? 'rotate-6 shadow-2xl' : ''}`;
 
-    if (photoUrl && !imageError) {
+    const isValidUrl = (url?: string) => {
+        if (!url) return false;
+        // Check for specific 1x1 tracking pixel
+        if (url === "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7") return false;
+        if (url.startsWith('data:')) return true;
+        if (url.startsWith('/')) return true; // Relative URLs
+        try {
+            new URL(url);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    if (photoUrl && isValidUrl(photoUrl) && !imageError) {
         return (
             <div className={containerClasses}>
                 <img
