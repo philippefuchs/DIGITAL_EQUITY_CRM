@@ -15,7 +15,7 @@ export const extractContactFromImage = async (base64Image: string) => {
   const ai = getGeminiClient();
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-001',
       contents: {
         parts: [
           { inlineData: { data: base64Image, mimeType: 'image/jpeg' } },
@@ -57,7 +57,7 @@ export const enrichContactFromText = async (text: string) => {
   const ai = getGeminiClient();
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-001',
       contents: `IDENTIFIER COORDONNÉES DIRECTES : "${text}"`,
       config: {
         systemInstruction: `Tu es un Expert en Renseignement Commercial (OSINT). Ta mission est de trouver les coordonnées de contact DIRECTES (Email et Téléphone) d'une personne au sein d'une entreprise donnée. Ne propose que des informations vérifiables ou des patterns d'email probables. Retourne exclusivement l'objet JSON structuré.`,
@@ -159,7 +159,7 @@ export const scoreLead = async (contact: any) => {
     };
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-001',
       contents: `Analyse ce prospect B2B :
       ${JSON.stringify(contactProfile, null, 2)}
       
@@ -242,7 +242,7 @@ export const getCarouselIdeas = async (userActivity: string, language: string = 
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-001',
       contents: `Donne-moi 5 idées de sujets de carrousels LinkedIn viraux pour une entreprise qui fait : "${userActivity}". 
       Réponds en JSON liste de chaînes de caractères.
       Langue de réponse impérative : ${langName}.`,
@@ -269,7 +269,7 @@ export const generateCarouselScript = async (topic: string, language: string = '
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-001',
       contents: `Rédige le script complet pour un carrousel de 6 slides sur le sujet : "${topic}".
       Langue de réponse : ${langName}.
       
@@ -361,7 +361,7 @@ export const generateLinkedInPostOptions = async (topic: string, slides: any[], 
       ]`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-1.5-flash-001',
       contents: systemPrompt,
       config: {
         responseMimeType: "application/json",
