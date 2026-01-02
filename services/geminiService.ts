@@ -19,13 +19,14 @@ export const getGeminiClient = () => {
   return { genAI: new GoogleGenerativeAI(clean), masked };
 };
 
-async function runAI(p: string, s: any, j: boolean = true) {
+async function runAI(p: string | any[], s: any, j: boolean = true) {
   const { genAI, masked } = getGeminiClient();
   const errors: string[] = [];
 
   for (const m of MODELS) {
     // Attempt Modern
     try {
+      console.log(`[AI] PHASE 1: ${m} (Modern/v1beta)`);
       const model = genAI.getGenerativeModel({
         model: m,
         generationConfig: j ? { responseMimeType: "application/json", responseSchema: s } : {}
@@ -40,9 +41,22 @@ async function runAI(p: string, s: any, j: boolean = true) {
 
     // Attempt Legacy
     try {
+      console.log(`[AI] PHASE 2: ${m} (Legacy/v1)`);
       const model = genAI.getGenerativeModel({ model: m }, { apiVersion: 'v1' });
-      const prompt = j ? `${p}\n\nRETOURNE UNIQUEMENT DU JSON (PAS DE TEXTE AUTOUR): ${JSON.stringify(s)}` : p;
-      const r = await model.generateContent(prompt);
+
+      let finalPrompt: any = p;
+      if (j) {
+        const schemaStr = JSON.stringify(s);
+        const instruct = `\n\nIMPORTANT: Réponds uniquement avec un objet JSON valide suivant exactement cette structure: ${schemaStr}`;
+        if (typeof p === 'string') {
+          finalPrompt = p + instruct;
+        } else if (Array.isArray(p)) {
+          // Add instruction to the text part
+          finalPrompt = p.map(part => part.text ? { ...part, text: part.text + instruct } : part);
+        }
+      }
+
+      const r = await model.generateContent(finalPrompt);
       const text = (await r.response).text();
       if (j) {
         const match = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
@@ -54,7 +68,6 @@ async function runAI(p: string, s: any, j: boolean = true) {
     }
   }
 
-  // Return the FULL first error message for diagnostic
   throw new Error(`ÉCHEC IA (Clé: ${masked}). Erreur : ${errors[0]}`);
 }
 
@@ -94,7 +107,27 @@ export const enrichContactFromText = async (t: string) => {
 
 export const generateCampaignContent = async (n: string, c: string, t: string) => await runAI(`Email to ${n} at ${c} for ${t}`, {}, false);
 
-export const extractContactFromImage = async () => ({ firstName: "Non", lastName: "Dispo", company: "Remplir manuel" });
+export const extractContactFromImage = async (base64Image: string) => {
+  const data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+  const parts = [
+    { inlineData: { data, mimeType: "image/jpeg" } },
+    { text: "Analyse cette carte de visite. Extrais les infos en JSON: Prénom (firstName), Nom (lastName), Poste (title), Société (company), Email (email), Téléphone (phone), Site Web (website), LinkedIn (linkedinUrl)." }
+  ];
+
+  return await runAI(parts, {
+    type: SchemaType.OBJECT,
+    properties: {
+      firstName: { type: SchemaType.STRING },
+      lastName: { type: SchemaType.STRING },
+      company: { type: SchemaType.STRING },
+      title: { type: SchemaType.STRING },
+      email: { type: SchemaType.STRING },
+      phone: { type: SchemaType.STRING },
+      website: { type: SchemaType.STRING },
+      linkedinUrl: { type: SchemaType.STRING },
+    }
+  });
+};
 
 export const generateLinkedInPostOptions = async (t: string, s: any[], c: string = "", l: string = 'fr') => {
   return await runAI(`Posts for ${t}. Slides: ${JSON.stringify(s)}. Instruction: ${c}`, {
