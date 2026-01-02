@@ -56,7 +56,7 @@ const CarouselManager: React.FC = () => {
             }, 100);
         } catch (err) {
             console.error(err);
-            setError("Erreur lors de la génération des posts.");
+            setError(`Erreur lors de la génération des posts : ${err.message || String(err)}`);
         } finally {
             setIsLoading(false);
         }
@@ -77,7 +77,7 @@ const CarouselManager: React.FC = () => {
             setTopicIdeas(ideas);
         } catch (err: any) {
             console.error(err);
-            setError("Impossible de générer des idées. Veuillez réessayer.");
+            setError(`Impossible de générer des idées : ${err.message || String(err)}`);
         } finally {
             setIsLoading(false);
         }
@@ -93,7 +93,7 @@ const CarouselManager: React.FC = () => {
             setStep(2);
         } catch (err: any) {
             console.error(err);
-            setError("Impossible de générer le script. Veuillez réessayer.");
+            setError(`Impossible de générer le script : ${err.message || String(err)}`);
         } finally {
             setIsLoading(false);
         }
