@@ -114,8 +114,8 @@ export const enrichContactFromText = async (t: string) => {
     const domain = parts[1];
     const local = parts[0];
     const namePart = local.split(/[._-]/)[0]; // "eric"
-    const companyPart = domain.split('.')[0]; // "digital-equity"
-    searchHint = `${namePart} ${companyPart} linkedin job title`;
+    // Use QUOTES around domain to force exact match in Google Search
+    searchHint = `${namePart} "${domain}" linkedin job title`;
   }
 
   const prompt = `
@@ -123,13 +123,12 @@ export const enrichContactFromText = async (t: string) => {
   
   STRATEGY:
   1. Use Google Search with this query: "${searchHint}".
-  2. Look for LinkedIn profiles or company 'About Us' pages.
+  2. TRUST THE EMAIL DOMAIN for the Company Name.
   3. Extract: Full Name (First + Last), Exact Job Title.
 
-  INPUT CONTEXT:
-  - Input: "${t}"
-  - Likely First Name: "${searchHint.split(' ')[0]}"
-  - Likely Company: "${searchHint.split(' ')[1]}"
+  RULES:
+  - Company Name MUST be derived from the email domain (e.g. digital-equity.com -> Digital Equity).
+  - DO NOT replace the company with a similar looking big corporation (e.g. DO NOT replace Digital Equity with DigitalBridge).
 
   OUTPUT (Strict JSON):
   {
@@ -143,27 +142,28 @@ export const enrichContactFromText = async (t: string) => {
   }
   `;
 
-  // Use gemini-2.0-flash-exp for best agentic search performance
-  const searchModelName = 'gemini-2.0-flash-exp';
+  // Use gemini-1.5-pro for maximum reasoning capability (slower but smarter)
+  const searchModelName = 'gemini-1.5-pro';
 
   try {
     const { genAI, masked } = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: searchModelName,
       tools: tools,
-      // REMOVED responseMimeType to allow the model to use tools (Search) freely before outputting JSON
+      // No JSON enforcement to allow search tool usage
     }, { apiVersion: 'v1beta' });
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
 
-    // Extract JSON from the potentially "chatty" response containing search logs
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     const d = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
 
-    // Fallback logic still applies
+    // Soft Fallback: Only fill IF EMPTY (User requested no hard overrides)
     if (isEmail) {
       if (!d.email) d.email = t.trim();
+
+      // Only help if AI totally failed to find a company
       if ((!d.company || d.company === "Non détecté") && d.email) {
         const domain = d.email.split('@')[1];
         if (domain) {
@@ -172,6 +172,7 @@ export const enrichContactFromText = async (t: string) => {
           d.company = rawName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         }
       }
+
       // Fallback Name if Search failed
       if (!d.firstName && d.email) {
         const parts = d.email.split('@')[0].split(/[._-]/);
