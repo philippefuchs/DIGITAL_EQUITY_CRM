@@ -6,9 +6,9 @@ import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
  */
 
 const MODELS = [
+  'gemini-2.0-flash-exp',
   'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-2.0-flash-exp'
+  'gemini-1.5-pro'
 ];
 
 export const getGeminiClient = () => {
@@ -111,7 +111,7 @@ export const extractContactFromImage = async (base64Image: string) => {
   const data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
   const parts = [
     { inlineData: { data, mimeType: "image/jpeg" } },
-    { text: "Analyse cette carte de visite. Extrais les infos en JSON: Prénom (firstName), Nom (lastName), Poste (title), Société (company), Email (email), Téléphone (phone), Site Web (website), LinkedIn (linkedinUrl)." }
+    { text: "Analyse cette carte de visite TRÈS ATTENTIVEMENT. Extrais TOUTES les informations, même celles écrites VERTICALEMENT ou en TRÈS PETIT. Il y a souvent un email ou un téléphone caché sur les bords. Retourne le résultat en JSON: Prénom (firstName), Nom (lastName), Poste (title), Société (company), Email (email), Téléphone (phone), Site Web (website), LinkedIn (linkedinUrl)." }
   ];
 
   return await runAI(parts, {
