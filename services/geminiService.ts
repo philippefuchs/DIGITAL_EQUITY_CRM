@@ -114,8 +114,10 @@ export const enrichContactFromText = async (t: string) => {
     const domain = parts[1];
     const local = parts[0];
     const namePart = local.split(/[._-]/)[0]; // "eric"
-    // Use QUOTES around domain to force exact match in Google Search
-    searchHint = `${namePart} "${domain}" linkedin job title`;
+    // Clean domain to get company name for better search results
+    const rawCompany = domain.split('.')[0].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    // Search for "Eric" + "Digital Equity" (Human Name) instead of domain string
+    searchHint = `${namePart} "${rawCompany}" linkedin job title`;
   }
 
   const prompt = `
