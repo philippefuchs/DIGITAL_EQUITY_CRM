@@ -121,31 +121,34 @@ export const enrichContactFromText = async (t: string) => {
   }
 
   const prompt = `
-  TASK: Find the real person behind: "${t}".
+  AGENT MISSION: enrich this B2B contact: "${t}".
   
-  STRATEGY:
-  1. Use Google Search with this query: "${searchHint}".
-  2. TRUST THE EMAIL DOMAIN for the Company Name.
-  3. Extract: Full Name (First + Last), Exact Job Title.
-
-  RULES:
-  - Company Name MUST be derived from the email domain (e.g. digital-equity.com -> Digital Equity).
-  - DO NOT replace the company with a similar looking big corporation (e.g. DO NOT replace Digital Equity with DigitalBridge).
-
+  SEARCH PROTOCOL:
+  1. QUERY 1: "${searchHint}". Look for LinkedIn/CorporationWiki/RocketReach results.
+  2. IF QUERY 1 FAILS: Search for "${searchHint.replace('linkedin job title', '')}".
+  3. ANALYSIS:
+     - Found "Eric Fuchs" at "Digital Equity"? -> SUCCESS. Output "Eric", "Fuchs", "CEO".
+     - Found "Eric" but no last name? -> FAIL. Try to find the specific person.
+  
+  DATA QUALITY RULES:
+  - Last Name is CRITICAL. Try your best to find it.
+  - Job Title is CRITICAL.
+  - Company: "${searchHint.split('"')[1]}" (Trust this entity).
+  
   OUTPUT (Strict JSON):
   {
     "firstName": "String",
-    "lastName": "String (Mandatory), if not found leave empty",
+    "lastName": "String (If not found, leave empty string)",
     "company": "String",
-    "title": "String (Mandatory), if not found leave 'Poste à identifier'",
+    "title": "String",
     "email": "${isEmail ? t : 'String'}",
     "phone": "String",
     "website": "String"
   }
   `;
 
-  // Use gemini-1.5-pro for maximum reasoning capability (slower but smarter)
-  const searchModelName = 'gemini-1.5-pro';
+  // Use gemini-2.0-flash-exp for superior agentic capabilities (multi-step reasoning)
+  const searchModelName = 'gemini-2.0-flash-exp';
 
   try {
     const { genAI, masked } = getGeminiClient();
