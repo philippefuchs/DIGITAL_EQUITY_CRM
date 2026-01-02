@@ -6,12 +6,16 @@ export const getGeminiClient = () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     const defaultKey = "AIzaSyAk2qBmeaW8TWsJU9nUWeDGlSpTkPfGUV8";
     
-    // Check if we are using the invalid placeholder
-    if (!apiKey || apiKey === defaultKey) {
-        console.error("CRITICAL: No valid VITE_GEMINI_API_KEY found. Using placeholder which will fail.");
-        throw new Error("Configuration manquante : Clé API Gemini non détectée. Veuillez ajouter VITE_GEMINI_API_KEY dans Vercel.");
+    // Sanitize API Key (remove spaces/quotes if accidental)
+    const cleanKey = apiKey ? apiKey.trim().replace(/^["']|["']$/g, '') : "";
+
+    console.log(`[DEBUG] Using API Key: ${ cleanKey.substring(0, 10) }...${ cleanKey.slice(-4) } `);
+
+    if (!cleanKey || cleanKey === defaultKey) {
+        console.error("CRITICAL: No valid VITE_GEMINI_API_KEY found.");
+        throw new Error("Configuration manquante : Clé API invalide ou non trouvée sur Vercel.");
     }
-    return new GoogleGenerativeAI(apiKey);
+    return new GoogleGenerativeAI(cleanKey);
 };
 
 // --- ROBUST FALLBACK MECHANISM ---
