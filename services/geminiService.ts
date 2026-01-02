@@ -1,154 +1,174 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 /**
- * --- GEMINI SERVICE ---
- * Ultra-robust version for regional compatibility.
+ * --- GEMINI SERVICE (ULTRA-ROBUST) ---
+ * This version handles regional restrictions by falling back to plain text 
+ * if JSON Mode/Schema is unsupported (400/404 errors).
  */
 
-const MODEL_LIST = [
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-1.0-pro'
-];
+const MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro'];
 
 export const getGeminiClient = () => {
-  const key = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyAk2qBmeaW8TWsJU9nUWeGGlSpTkPfGUV8";
-  const clean = key.trim().replace(/^["']|["']$/g, '');
-  return new GoogleGenerativeAI(clean);
+  const rawKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+  // Sanitize and provide a fallback demo key if absolutely empty
+  const cleanKey = rawKey.trim().replace(/^["']|["']$/g, '') || "AIzaSyAk2qBmeaW8TWsJU9nUWeGGlSpTkPfGUV8";
+
+  // Diagnostic logging for production (masked)
+  const masked = cleanKey.length > 10 ? `${cleanKey.substring(0, 6)}...${cleanKey.slice(-4)}` : "INVALID_KEY";
+  console.log(`[AI SERVICE] Initialized with key: ${masked}`);
+
+  return {
+    client: new GoogleGenerativeAI(cleanKey),
+    maskedKey: masked
+  };
 };
 
 /**
- * Robust AI Caller
- * 1. Tries Modern JSON Mode (v1beta)
- * 2. If 400/404, tries Legacy Text Mode (v1)
+ * AI CALLER WITH LEGACY FALLBACK
  */
-async function callAI(prompt: string, schema: any, isJson: boolean = true) {
-  const client = getGeminiClient();
+async function callAI(
+  prompt: string,
+  schema: any,
+  options: { isJson?: boolean, system?: string } = {}
+) {
+  const { client, maskedKey } = getGeminiClient();
+  const isJson = options.isJson !== false;
   const errors: string[] = [];
 
-  for (const mName of MODEL_LIST) {
-    // --- 1. MODERN (v1beta) ---
+  for (const modelName of MODELS) {
+    // --- PHASE 1: MODERN (v1beta + Schema) ---
     try {
-      console.log(`[AI] ${mName} (beta)...`);
+      console.log(`[AI] PHASE 1: ${modelName} (Modern/v1beta)`);
       const model = client.getGenerativeModel({
-        model: mName,
-        generationConfig: isJson ? { responseMimeType: "application/json", responseSchema: schema } : {}
+        model: modelName,
+        systemInstruction: options.system,
+        generationConfig: isJson ? {
+          responseMimeType: "application/json",
+          responseSchema: schema
+        } : {}
       }, { apiVersion: 'v1beta' });
 
-      const res = await model.generateContent(prompt);
-      const text = (await res.response).text();
+      const result = await model.generateContent(prompt);
+      const text = (await result.response).text();
       return isJson ? JSON.parse(text) : text;
-    } catch (e: any) {
-      console.warn(`[AI] Beta ${mName} failed:`, e.message);
-      errors.push(`${mName}(beta): ${e.message?.substring(0, 50)}`);
-      if (e.message?.includes("403")) throw e;
+    } catch (err: any) {
+      const msg = err.message || "Unknown error";
+      console.warn(`[AI] Modern mode failed for ${modelName}:`, msg);
+      errors.push(`${modelName}(beta): ${msg.substring(0, 80)}`);
+
+      // If it's a definitive Auth error, don't retry models
+      if (msg.includes("403") || msg.includes("401") || msg.includes("API_KEY_INVALID")) {
+        throw new Error(`[AUTH ERROR] La clé API [${maskedKey}] est rejetée par Google (403/401). Vérifiez vos restrictions Google Cloud.`);
+      }
     }
 
-    // --- 2. LEGACY (v1) ---
+    // --- PHASE 2: LEGACY (v1 + Text + Regex Parse) ---
     try {
-      console.log(`[AI] ${mName} (legacy)...`);
-      const model = client.getGenerativeModel({ model: mName }, { apiVersion: 'v1' });
-      const finalPrompt = isJson ? `${prompt}\n\nReturn ONLY a JSON object: ${JSON.stringify(schema)}` : prompt;
-      const res = await model.generateContent(finalPrompt);
-      const text = (await res.response).text();
+      console.log(`[AI] PHASE 2: ${modelName} (Legacy/v1)`);
+      const model = client.getGenerativeModel({
+        model: modelName,
+        systemInstruction: options.system
+      }, { apiVersion: 'v1' });
+
+      const legacyPrompt = isJson
+        ? `${prompt}\n\nIMPORTANT: Réponds uniquement avec un objet JSON valide suivant exactement cette structure: ${JSON.stringify(schema)}`
+        : prompt;
+
+      const result = await model.generateContent(legacyPrompt);
+      const text = (await result.response).text();
 
       if (isJson) {
+        // Find potential JSON block in case of conversational noise
         const match = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
         return JSON.parse(match ? match[0] : text);
       }
       return text;
-    } catch (e: any) {
-      console.warn(`[AI] Legacy ${mName} failed`);
-      errors.push(`${mName}(v1): ${e.message?.substring(0, 50)}`);
+    } catch (err: any) {
+      console.warn(`[AI] Legacy mode failed for ${modelName}`);
+      errors.push(`${modelName}(v1): ${err.message?.substring(0, 80)}`);
     }
   }
-  throw new Error(`AI Global Failure. Details: ${errors.join(" | ")}`);
+
+  throw new Error(`ÉCHEC IA GLOBAL (${maskedKey}). Détails: ${errors.join(" | ")}`);
 }
 
 // --- FEATURES ---
 
 export const getCarouselIdeas = async (userActivity: string, language: string = 'fr') => {
-  return await callAI(
-    `LinkedIn topics for: "${userActivity}". Language: ${language}.`,
-    { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } }
-  );
+  return await callAI(`Donne 5 idées de sujets LinkedIn pour: "${userActivity}". Langue: ${language}.`, {
+    type: SchemaType.ARRAY,
+    items: { type: SchemaType.STRING }
+  });
 };
 
 export const generateCarouselScript = async (topic: string, language: string = 'fr') => {
-  return await callAI(
-    `LinkedIn carousel script (6 slides) for: "${topic}". Language: ${language}.`,
-    {
-      type: SchemaType.ARRAY,
-      items: {
-        type: SchemaType.OBJECT,
-        properties: {
-          title: { type: SchemaType.STRING },
-          content: { type: SchemaType.STRING },
-          visual: { type: SchemaType.STRING }
-        }
-      }
+  return await callAI(`Écris un script de carousel LinkedIn (6 slides) sur: "${topic}". Langue: ${language}. Hook, Problème, Solution, Preuve, CTA.`, {
+    type: SchemaType.ARRAY,
+    items: {
+      type: SchemaType.OBJECT,
+      properties: {
+        title: { type: SchemaType.STRING },
+        content: { type: SchemaType.STRING },
+        visual: { type: SchemaType.STRING }
+      },
+      required: ["title", "content", "visual"]
     }
-  );
+  });
+};
+
+export const generateLinkedInPostOptions = async (topic: string, slides: any[], customInstruction: string = "", language: string = 'fr') => {
+  return await callAI(`À partir de ces slides: ${JSON.stringify(slides)}, écris 3 posts LinkedIn sur le thème "${topic}". Consigne: ${customInstruction}. Langue: ${language}.`, {
+    type: SchemaType.ARRAY,
+    items: {
+      type: SchemaType.OBJECT,
+      properties: {
+        tone: { type: SchemaType.STRING },
+        hook: { type: SchemaType.STRING },
+        content: { type: SchemaType.STRING }
+      },
+      required: ["tone", "hook", "content"]
+    }
+  });
 };
 
 export const scoreLead = async (contact: any) => {
   try {
-    const data = await callAI(
-      `Score Lead: ${JSON.stringify(contact)}`,
-      {
-        type: SchemaType.OBJECT,
-        properties: {
-          score: { type: SchemaType.NUMBER },
-          reason: { type: SchemaType.STRING }
-        }
+    const d = await callAI(`Analyse ce prospect B2B 0-100: ${JSON.stringify(contact)}`, {
+      type: SchemaType.OBJECT,
+      properties: {
+        score: { type: SchemaType.NUMBER },
+        reason: { type: SchemaType.STRING }
       }
-    );
-    return { score: data.score || 50, reason: data.reason || "Ok", summary: "Analyse finie." };
+    });
+    return { score: d.score || 50, reason: d.reason || "Ok", summary: "Analyse terminée." };
   } catch (e) {
-    return { score: 50, reason: "N/A", summary: "Error" };
+    return { score: 50, reason: "N/A", summary: "Service indisponible." };
   }
 };
 
 export const enrichContactFromText = async (text: string) => {
-  const data = await callAI(
-    `Enrich: ${text}`,
-    {
-      type: SchemaType.OBJECT,
-      properties: {
-        firstName: { type: SchemaType.STRING },
-        lastName: { type: SchemaType.STRING },
-        company: { type: SchemaType.STRING },
-        email: { type: SchemaType.STRING }
-      },
-      required: ["firstName", "lastName", "company"]
-    }
-  );
-  return { data, sources: [] };
+  const d = await callAI(`Extrais les infos prospect de ce texte: "${text}"`, {
+    type: SchemaType.OBJECT,
+    properties: {
+      firstName: { type: SchemaType.STRING },
+      lastName: { type: SchemaType.STRING },
+      company: { type: SchemaType.STRING },
+      email: { type: SchemaType.STRING }
+    },
+    required: ["firstName", "lastName", "company"]
+  });
+  return { data: d, sources: [] };
 };
 
 export const generateCampaignContent = async (name: string, company: string, topic: string) => {
-  return await callAI(`Email to ${name} at ${company} about ${topic}.`, {}, false);
+  return await callAI(`Écris un email de prospection à ${name} (${company}) sur le sujet: ${topic}.`, {}, { isJson: false });
 };
 
-export const extractContactFromImage = async (base64: string) => {
-  return { firstName: "Extraite", lastName: "Image", company: "A remplir" };
-};
-
-export const generateLinkedInPostOptions = async (topic: string, slides: any[], custom: string = "", lang: string = 'fr') => {
-  return await callAI(
-    `LinkedIn post for ${topic}. Slides: ${JSON.stringify(slides)}. Extra: ${custom}`,
-    {
-      type: SchemaType.ARRAY,
-      items: {
-        type: SchemaType.OBJECT,
-        properties: {
-          tone: { type: SchemaType.STRING },
-          content: { type: SchemaType.STRING }
-        }
-      }
-    }
-  );
-};
+export const extractContactFromImage = async () => ({
+  firstName: "Extraction",
+  lastName: "Non Dispo",
+  company: "Veuillez remplir manuellement"
+});
 
 export const editProspectProfileImage = async () => null;
 
