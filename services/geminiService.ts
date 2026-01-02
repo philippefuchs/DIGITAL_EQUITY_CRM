@@ -112,24 +112,39 @@ export const generateCampaignContent = async (n: string, c: string, t: string) =
 
 export const extractContactFromImage = async (base64Image: string) => {
   const data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+
+  // Use a specialized prompt for high-precision OCR
   const parts = [
     { inlineData: { data, mimeType: "image/jpeg" } },
-    { text: "Analyse cette carte de visite TRÈS ATTENTIVEMENT. Extrais TOUTES les informations, même celles écrites VERTICALEMENT ou en TRÈS PETIT. Il y a souvent un email ou un téléphone caché sur les bords. Retourne le résultat en JSON: Prénom (firstName), Nom (lastName), Poste (title), Société (company), Email (email), Téléphone (phone), Site Web (website), LinkedIn (linkedinUrl)." }
+    {
+      text: `INSTRUCTION: Analyse cette carte de visite avec une précision extrême. 
+1. Transcris TOUT le texte visible, y compris le texte écrit VERTICALEMENT sur les bords et le texte en TOUT PETIT.
+2. Identifie l'email (format x@y.z) et le téléphone même s'ils sont tournés à 90 degrés.
+3. Retourne UNIQUEMENT un objet JSON avec ces clés: firstName, lastName, title, company, email, phone, website, linkedinUrl.` }
   ];
 
-  return await runAI(parts, {
-    type: SchemaType.OBJECT,
-    properties: {
-      firstName: { type: SchemaType.STRING },
-      lastName: { type: SchemaType.STRING },
-      company: { type: SchemaType.STRING },
-      title: { type: SchemaType.STRING },
-      email: { type: SchemaType.STRING },
-      phone: { type: SchemaType.STRING },
-      website: { type: SchemaType.STRING },
-      linkedinUrl: { type: SchemaType.STRING },
-    }
-  });
+  // We temporarily use gemini-1.5-pro for vision as it's MUCH better at OCR for vertical text
+  const originalModels = [...MODELS];
+  try {
+    // Temporarily swap Pro to front for vision accuracy
+    MODELS.sort((a, b) => a.includes('pro') ? -1 : 1);
+    return await runAI(parts, {
+      type: SchemaType.OBJECT,
+      properties: {
+        firstName: { type: SchemaType.STRING },
+        lastName: { type: SchemaType.STRING },
+        company: { type: SchemaType.STRING },
+        title: { type: SchemaType.STRING },
+        email: { type: SchemaType.STRING },
+        phone: { type: SchemaType.STRING },
+        website: { type: SchemaType.STRING },
+        linkedinUrl: { type: SchemaType.STRING },
+      }
+    });
+  } finally {
+    // Restore original order
+    MODELS.splice(0, MODELS.length, ...originalModels);
+  }
 };
 
 export const generateLinkedInPostOptions = async (t: string, s: any[], c: string = "", l: string = 'fr') => {
