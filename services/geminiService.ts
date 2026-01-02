@@ -74,10 +74,7 @@ async function callAI(op: Operation) {
 export const extractContactFromImage = async (base64Image: string) => {
   return callAI(async (modelName, apiVer) => {
     const genAI = getGeminiClient();
-    const model = genAI.getGenerativeModel({ model: modelName }, { apiVersion: apiVer as any });
-
-    // Configuration specific to extraction
-    const modelWithExtra = genAI.getGenerativeModel({
+    const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
         responseMimeType: "application/json",
@@ -98,12 +95,13 @@ export const extractContactFromImage = async (base64Image: string) => {
     }, { apiVersion: apiVer as any });
 
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-    const parts: Part[] = [
+    // Use explicit cast for Parts to satisfy older types if necessary
+    const payloadParts: any[] = [
       { inlineData: { data: cleanBase64, mimeType: "image/jpeg" } },
       { text: "Extract contact info from this business card as JSON." }
     ];
 
-    const result = await modelWithExtra.generateContent(parts);
+    const result = await model.generateContent(payloadParts);
     const response = await result.response;
     return JSON.parse(response.text());
   });
