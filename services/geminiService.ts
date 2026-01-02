@@ -12,10 +12,15 @@ export const getGeminiClient = () => {
   // Explicit string concatenation to avoid backtick issues in some environments
   console.log("[DEBUG] Using API Key: " + (cleanKey ? cleanKey.substring(0, 10) + "..." + cleanKey.slice(-4) : "NONE"));
 
-  if (!cleanKey || cleanKey === defaultKey) {
-    console.error("CRITICAL: No valid VITE_GEMINI_API_KEY found.");
-    throw new Error(`Configuration manquante : Clé API invalide ou non trouvée sur Vercel. (Reçu: "${cleanKey ? cleanKey.substring(0, 3) + '...' : 'UNDEFINED/EMPTY'}")`);
+  if (!cleanKey) {
+    console.error("CRITICAL: No VITE_GEMINI_API_KEY found.");
+    throw new Error("Configuration manquante : Clé API non trouvée sur Vercel.");
   }
+
+  if (cleanKey === defaultKey) {
+    console.warn("WARNING: You seem to be using the public placeholder key. This will likely fail.");
+  }
+
   return new GoogleGenerativeAI(cleanKey);
 };
 
