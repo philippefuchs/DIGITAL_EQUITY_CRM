@@ -101,22 +101,28 @@ export const scoreLead = async (c: any) => {
 
 export const enrichContactFromText = async (t: string) => {
   const isEmail = t.includes('@');
-  const context = isEmail ? "C'est un email." : "C'est un nom ou une société.";
 
   const prompt = `
-  INSTRUCTION: Tu es un expert en données B2B. Analyse: "${t}" (${context}).
+  TASK: Extract B2B contact details from: "${t}".
   
-  RÈGLES:
-  1. Si c'est un email (x@y.z):
-     - Email = l'entrée exacte.
-     - Prénom/Nom = extraits de la partie gauche (ex: eric.schmidt -> Eric Schmidt). Si juste "eric", Prénom=Eric, Nom="".
-     - Société = extraite du domaine (ex: digital-equity.com -> Digital Equity).
-  2. Si ce n'est pas un email:
-     - Devine le prénom, nom et société.
-     - Laisse l'email vide si tu ne peux pas le deviner avec certitude.
-  3. INTERDIT d'inventer des célébrités (pas de Eric Schmidt si c'est juste "eric@...").
+  RULES:
+  1. COMPANY: If email domain is present (e.g. @digital-equity.com), Company MUST be the domain name capitalized (e.g. "Digital Equity"). DO NOT leave Company empty if domain exists.
+  2. NAME: 
+     - "eric.schmidt@..." -> First: Eric, Last: Schmidt
+     - "eric@..." -> First: Eric, Last: "" (Leave empty if unknown, DO NOT invent).
+  3. WEBSITE: Must be the domain only (e.g. "digital-equity.com"). NO extra characters.
+  4. JOB TITLE: Guess based on context or leave "Poste à identifier".
   
-  Retourne JSON: firstName, lastName, company, title, email, phone, website.
+  OUTPUT FORMAT (Strict JSON, no escaped quotes in values):
+  {
+    "firstName": "String",
+    "lastName": "String",
+    "company": "String",
+    "title": "String",
+    "email": "String",
+    "phone": "String",
+    "website": "String"
+  }
   `;
 
   const d = await runAI(prompt, {
@@ -132,8 +138,18 @@ export const enrichContactFromText = async (t: string) => {
     }
   });
 
-  // Force email if input was email and AI missed it
-  if (isEmail && !d.email) d.email = t.trim();
+  // Post-processing to robustify data
+  if (isEmail) {
+    if (!d.email) d.email = t.trim();
+    // Fallback: Infer company from email if AI failed
+    if ((!d.company || d.company === "Non détecté") && d.email) {
+      const domain = d.email.split('@')[1];
+      if (domain) {
+        d.website = domain;
+        d.company = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
+      }
+    }
+  }
 
   return { data: d, sources: [] };
 };
