@@ -107,47 +107,57 @@ const tools: any = [
 export const enrichContactFromText = async (t: string) => {
   const isEmail = t.includes('@');
 
+  // Pre-calculate likely search terms to guide the AI
+  let searchHint = t;
+  if (isEmail) {
+    const parts = t.split('@');
+    const domain = parts[1];
+    const local = parts[0];
+    const namePart = local.split(/[._-]/)[0]; // "eric"
+    const companyPart = domain.split('.')[0]; // "digital-equity"
+    searchHint = `${namePart} ${companyPart} linkedin job title`;
+  }
+
   const prompt = `
-  TASK: Find the real person behind this input: "${t}" using Google Search.
+  TASK: Find the real person behind: "${t}".
   
-  Authorized Actions:
-  1. Search for the email address or "Name + Company" on Google/LinkedIn.
-  2. Find the exact Job Title and Full Name.
-  3. Validate the company website.
+  STRATEGY:
+  1. Use Google Search with this query: "${searchHint}".
+  2. Look for LinkedIn profiles or company 'About Us' pages.
+  3. Extract: Full Name (First + Last), Exact Job Title.
 
-  RULES:
-  - If you find a linkedin profile, extract the Title and Name from there.
-  - If searching returns nothing, use the email extraction logic as fallback.
-  - DO NOT INVENT. If search fails, leave unknown fields empty.
+  INPUT CONTEXT:
+  - Input: "${t}"
+  - Likely First Name: "${searchHint.split(' ')[0]}"
+  - Likely Company: "${searchHint.split(' ')[1]}"
 
-  OUTPUT FORMAT (Strict JSON):
+  OUTPUT (Strict JSON):
   {
     "firstName": "String",
-    "lastName": "String",
+    "lastName": "String (Mandatory), if not found leave empty",
     "company": "String",
-    "title": "String",
-    "email": "String",
+    "title": "String (Mandatory), if not found leave 'Poste à identifier'",
+    "email": "${isEmail ? t : 'String'}",
     "phone": "String",
     "website": "String"
   }
   `;
 
-  // We use gemini-1.5-pro or 2.0-flash-exp which support tools best
-  const customModels = ['gemini-2.0-flash-exp', 'gemini-1.5-pro'];
+  // Use gemini-1.5-pro as it follows complex search instructions reliably
+  // gemini-2.0-flash-exp is fast but sometimes skips tools for simple prompts
+  const searchModelName = 'gemini-1.5-pro';
 
   try {
-    // Direct call to runAI with tool support logic needs to be added to runAI or handled here.
-    // Since runAI is a wrapper, we interpret it here by calling genAI directly for this specific advanced feature
-    // to avoid breaking the generic wrapper.
-    const { genAI } = getGeminiClient();
+    const { genAI, masked } = getGeminiClient(); // Use maskedKey for debug if needed
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash-exp',
+      model: searchModelName,
       tools: tools,
       generationConfig: { responseMimeType: "application/json" }
     }, { apiVersion: 'v1beta' });
 
     const result = await model.generateContent(prompt);
-    const d = JSON.parse(result.response.text());
+    const text = result.response.text();
+    const d = JSON.parse(text);
 
     // Fallback logic still applies
     if (isEmail) {
