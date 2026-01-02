@@ -36,7 +36,7 @@ type ModelOperation = (model: any) => Promise<any>;
  */
 async function executeWithFallback(operation: ModelOperation) {
   const genAI = getGeminiClient();
-  let lastError: any = null;
+  let errors: string[] = [];
 
   for (const modelName of MODEL_FALLBACK_LIST) {
     try {
@@ -48,23 +48,25 @@ async function executeWithFallback(operation: ModelOperation) {
       // Re-architecture: We pass the modelName to the operation function.
       return await operation(modelName);
     } catch (err: any) {
-      console.warn(`Model ${modelName} failed:`, err.message || err);
-      lastError = err;
+      const msg = err.message || JSON.stringify(err);
+      console.warn(`Model ${modelName} failed:`, msg);
+      errors.push(`${modelName}: ${msg}`);
 
-      // Only retry on specific errors that indicate model unavailability
-      const msg = (err.message || "").toLowerCase();
-      const isModelError = msg.includes("not found") || msg.includes("404") || msg.includes("supported") || msg.includes("400"); // 400 sometimes for bad request due to model capabilities
+      // Only retry on specific errors
+      const isModelError = msg.includes("not found") || msg.includes("404") || msg.includes("supported") || msg.includes("400") || msg.includes("403");
 
       if (!isModelError) {
-        // If it's a content safety blocking or network error, proceeding to next model might not help, but safer to retry if unsure.
-        // However, usually we want to retry mainly for "Model Not Found".
-        // Let's continue anyway to be maximally robust.
+        // strict break on non-model errors (like network/auth if definitive)? 
+        // actually 403 IS auth, so we should continue to see if another model works? 
+        // No, 403 on API key applies to all.
+        // But let's keep trying just in case it's a model specific permission.
       }
     }
   }
 
   console.error("All models failed.");
-  throw lastError;
+  // Throw a summarized error for the UI
+  throw new Error(`Échec de génération IA sur tous les modèles (${MODEL_FALLBACK_LIST.length}). Détails: ${errors.join(" | ")} \n\n 👉 CONSEIL : Avez-vous pensé à REDÉPLOYER Vercel après avoir changé la clé API ?`);
 }
 
 // --- Extraction visuelle de carte de visite ---
