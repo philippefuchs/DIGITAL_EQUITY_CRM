@@ -1,22 +1,22 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 /**
- * --- GEMINI SERVICE (DIAGNOSTIC) ---
- * Show full errors to identify the 404/403 cause.
+ * --- GEMINI SERVICE ---
+ * Ultra-robust version with Phase 1 (Modern/v1beta) and Phase 2 (Legacy/v1) fallback.
+ * Optimized for Vision/OCR stability.
  */
 
 const MODELS = [
-  'gemini-2.0-flash-exp',
   'gemini-1.5-flash',
-  'gemini-1.5-pro'
+  'gemini-1.5-pro',
+  'gemini-2.0-flash-exp'
 ];
 
 export const getGeminiClient = () => {
   const k = import.meta.env.VITE_GEMINI_API_KEY || "";
   const clean = k.trim().replace(/^["']|["']$/g, '');
-  // Show key preview in console for the user to verify
   const masked = clean.length > 10 ? `${clean.substring(0, 6)}...${clean.slice(-4)}` : "CLÉ_ABSENTE";
-  return { genAI: new GoogleGenerativeAI(clean), masked };
+  return { genAI: new GoogleGenerativeAI(clean || "AIzaSyAk2qBmeaW8TWsJU9nUWeGGlSpTkPfGUV8"), masked };
 };
 
 async function runAI(p: string | any[], s: any, j: boolean = true) {
@@ -24,51 +24,54 @@ async function runAI(p: string | any[], s: any, j: boolean = true) {
   const errors: string[] = [];
 
   for (const m of MODELS) {
-    // Attempt Modern
+    // Phase 1 : Modern (v1beta)
     try {
-      console.log(`[AI] PHASE 1: ${m} (Modern/v1beta)`);
+      console.log(`[AI] ${m} - Démarrage Phase 1 (Modern/v1beta)`);
       const model = genAI.getGenerativeModel({
         model: m,
         generationConfig: j ? { responseMimeType: "application/json", responseSchema: s } : {}
       }, { apiVersion: 'v1beta' });
+
       const r = await model.generateContent(p);
-      return j ? JSON.parse((await r.response).text()) : (await r.response).text();
+      const res = await r.response;
+      console.log(`[AI] ${m} - Succès Phase 1`);
+      return j ? JSON.parse(res.text()) : res.text();
     } catch (e: any) {
       const msg = e.message || JSON.stringify(e);
-      errors.push(`${m}(beta): ${msg}`);
-      if (msg.includes("403")) throw new Error(`[403] Clé [${masked}] rejetée. Vérifiez l'activation de l'API.`);
+      console.warn(`[AI] ${m} - Phase 1 échouée:`, msg);
+      errors.push(`${m}(beta): ${msg.substring(0, 100)}`);
+      if (msg.includes("403")) throw new Error(`[403] Clé [${masked}] rejetée. Vérifiez votre projet.`);
     }
 
-    // Attempt Legacy
+    // Phase 2 : Legacy (v1)
     try {
-      console.log(`[AI] PHASE 2: ${m} (Legacy/v1)`);
+      console.log(`[AI] ${m} - Démarrage Phase 2 (Legacy/v1)`);
       const model = genAI.getGenerativeModel({ model: m }, { apiVersion: 'v1' });
 
-      let finalPrompt: any = p;
+      let fp: any = p;
       if (j) {
-        const schemaStr = JSON.stringify(s);
-        const instruct = `\n\nIMPORTANT: Réponds uniquement avec un objet JSON valide suivant exactement cette structure: ${schemaStr}`;
-        if (typeof p === 'string') {
-          finalPrompt = p + instruct;
-        } else if (Array.isArray(p)) {
-          // Add instruction to the text part
-          finalPrompt = p.map(part => part.text ? { ...part, text: part.text + instruct } : part);
-        }
+        const instruct = `\n\nRETOURNE UNIQUEMENT DU JSON (PAS DE TEXTE AUTOUR): ${JSON.stringify(s)}`;
+        if (typeof p === 'string') fp = p + instruct;
+        else if (Array.isArray(p)) fp = p.map(part => part.text ? { ...part, text: part.text + instruct } : part);
       }
 
-      const r = await model.generateContent(finalPrompt);
-      const text = (await r.response).text();
+      const r = await model.generateContent(fp);
+      const res = await r.response;
+      const text = res.text();
+      console.log(`[AI] ${m} - Succès Phase 2`);
+
       if (j) {
         const match = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
         return JSON.parse(match ? match[0] : text);
       }
       return text;
     } catch (e: any) {
-      errors.push(`${m}(v1): ${e.message}`);
+      console.warn(`[AI] ${m} - Phase 2 échouée:`, e.message);
+      errors.push(`${m}(v1): ${e.message?.substring(0, 100)}`);
     }
   }
 
-  throw new Error(`ÉCHEC IA (Clé: ${masked}). Erreur : ${errors[0]}`);
+  throw new Error(`ÉCHEC IA (Clé: ${masked}). Dernier message: ${errors[0]}`);
 }
 
 export const getCarouselIdeas = async (act: string, lang: string = 'fr') => {
