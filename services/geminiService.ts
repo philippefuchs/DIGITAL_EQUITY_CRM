@@ -99,21 +99,28 @@ export const scoreLead = async (c: any) => {
   }
 };
 
+// Google Search Tool Definition with simple casting to avoid strict type issues
+const tools: any = [
+  { googleSearch: {} }
+];
+
 export const enrichContactFromText = async (t: string) => {
   const isEmail = t.includes('@');
 
   const prompt = `
-  TASK: Extract B2B contact details from: "${t}".
+  TASK: Find the real person behind this input: "${t}" using Google Search.
   
+  Authorized Actions:
+  1. Search for the email address or "Name + Company" on Google/LinkedIn.
+  2. Find the exact Job Title and Full Name.
+  3. Validate the company website.
+
   RULES:
-  1. COMPANY: If email domain is present (e.g. @digital-equity.com), Company MUST be the domain name capitalized (e.g. "Digital Equity"). DO NOT leave Company empty if domain exists.
-  2. NAME: 
-     - "eric.schmidt@..." -> First: Eric, Last: Schmidt
-     - "eric@..." -> First: Eric, Last: "" (Leave empty if unknown, DO NOT invent).
-  3. WEBSITE: Must be the domain only (e.g. "digital-equity.com"). NO extra characters.
-  4. JOB TITLE: Guess based on context or leave "Poste à identifier".
-  
-  OUTPUT FORMAT (Strict JSON, no escaped quotes in values):
+  - If you find a linkedin profile, extract the Title and Name from there.
+  - If searching returns nothing, use the email extraction logic as fallback.
+  - DO NOT INVENT. If search fails, leave unknown fields empty.
+
+  OUTPUT FORMAT (Strict JSON):
   {
     "firstName": "String",
     "lastName": "String",
@@ -125,32 +132,75 @@ export const enrichContactFromText = async (t: string) => {
   }
   `;
 
-  const d = await runAI(prompt, {
-    type: SchemaType.OBJECT,
-    properties: {
-      firstName: { type: SchemaType.STRING },
-      lastName: { type: SchemaType.STRING },
-      company: { type: SchemaType.STRING },
-      title: { type: SchemaType.STRING },
-      email: { type: SchemaType.STRING },
-      phone: { type: SchemaType.STRING },
-      website: { type: SchemaType.STRING }
-    }
-  });
+  // We use gemini-1.5-pro or 2.0-flash-exp which support tools best
+  const customModels = ['gemini-2.0-flash-exp', 'gemini-1.5-pro'];
 
-  // Post-processing to robustify data
+  try {
+    // Direct call to runAI with tool support logic needs to be added to runAI or handled here.
+    // Since runAI is a wrapper, we interpret it here by calling genAI directly for this specific advanced feature
+    // to avoid breaking the generic wrapper.
+    const { genAI } = getGeminiClient();
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash-exp',
+      tools: tools,
+      generationConfig: { responseMimeType: "application/json" }
+    }, { apiVersion: 'v1beta' });
+
+    const result = await model.generateContent(prompt);
+    const d = JSON.parse(result.response.text());
+
+    // Fallback logic still applies
+    if (isEmail) {
+      if (!d.email) d.email = t.trim();
+      if ((!d.company || d.company === "Non détecté") && d.email) {
+        const domain = d.email.split('@')[1];
+        if (domain) {
+          d.website = domain;
+          const rawName = domain.split('.')[0];
+          d.company = rawName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+      }
+      // Fallback Name if Search failed
+      if (!d.firstName && d.email) {
+        const parts = d.email.split('@')[0].split(/[._-]/);
+        if (parts.length > 0) d.firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+        if (parts.length > 1) d.lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+      }
+    }
+    return { data: d, sources: [] }; // Sources could be extracted from groundingMetadata if needed
+  } catch (e) {
+    console.warn("Search Grounding failed, reverting to basic logic", e);
+    // Revert to basic runAI if search fails
+    return fallbackEnrich(t);
+  }
+};
+
+// Internal copy of the basic logic for fallback
+const fallbackEnrich = async (t: string) => {
+  // ... logic from previous standard implementation ...
+  // For simplicity calling the standard runAI without tools
+  const d = await runAI(`Extract details (no search) from: ${t}`, {
+    type: SchemaType.OBJECT,
+    properties: { firstName: { type: SchemaType.STRING }, lastName: { type: SchemaType.STRING }, company: { type: SchemaType.STRING }, title: { type: SchemaType.STRING }, email: { type: SchemaType.STRING }, phone: { type: SchemaType.STRING }, website: { type: SchemaType.STRING } }
+  });
+  // ... apply same fallbacks ...
+  const isEmail = t.includes('@');
   if (isEmail) {
     if (!d.email) d.email = t.trim();
-    // Fallback: Infer company from email if AI failed
     if ((!d.company || d.company === "Non détecté") && d.email) {
       const domain = d.email.split('@')[1];
       if (domain) {
         d.website = domain;
-        d.company = domain.split('.')[0].charAt(0).toUpperCase() + domain.split('.')[0].slice(1);
+        const rawName = domain.split('.')[0];
+        d.company = rawName.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       }
     }
+    if (!d.firstName && d.email) {
+      const parts = d.email.split('@')[0].split(/[._-]/);
+      if (parts.length > 0) d.firstName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+      if (parts.length > 1) d.lastName = parts.slice(1).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+    }
   }
-
   return { data: d, sources: [] };
 };
 
