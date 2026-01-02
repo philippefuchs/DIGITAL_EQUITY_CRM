@@ -143,21 +143,23 @@ export const enrichContactFromText = async (t: string) => {
   }
   `;
 
-  // Use gemini-1.5-pro as it follows complex search instructions reliably
-  // gemini-2.0-flash-exp is fast but sometimes skips tools for simple prompts
-  const searchModelName = 'gemini-1.5-pro';
+  // Use gemini-2.0-flash-exp for best agentic search performance
+  const searchModelName = 'gemini-2.0-flash-exp';
 
   try {
-    const { genAI, masked } = getGeminiClient(); // Use maskedKey for debug if needed
+    const { genAI, masked } = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: searchModelName,
       tools: tools,
-      generationConfig: { responseMimeType: "application/json" }
+      // REMOVED responseMimeType to allow the model to use tools (Search) freely before outputting JSON
     }, { apiVersion: 'v1beta' });
 
     const result = await model.generateContent(prompt);
     const text = result.response.text();
-    const d = JSON.parse(text);
+
+    // Extract JSON from the potentially "chatty" response containing search logs
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const d = jsonMatch ? JSON.parse(jsonMatch[0]) : JSON.parse(text);
 
     // Fallback logic still applies
     if (isEmail) {
