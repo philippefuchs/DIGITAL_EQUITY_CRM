@@ -14,7 +14,7 @@ export const getGeminiClient = () => {
 
   if (!cleanKey || cleanKey === defaultKey) {
     console.error("CRITICAL: No valid VITE_GEMINI_API_KEY found.");
-    throw new Error("Configuration manquante : Clé API invalide ou non trouvée sur Vercel.");
+    throw new Error(`Configuration manquante : Clé API invalide ou non trouvée sur Vercel. (Reçu: "${cleanKey ? cleanKey.substring(0, 3) + '...' : 'UNDEFINED/EMPTY'}")`);
   }
   return new GoogleGenerativeAI(cleanKey);
 };
