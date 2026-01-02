@@ -2,9 +2,10 @@ import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 /**
  * --- GEMINI SERVICE ---
+ * FIXED: Prioritizing v1beta for JSON Schema support.
  */
 
-const API_VERSIONS = ['v1', 'v1beta'];
+const API_VERSIONS = ['v1beta', 'v1'];
 const MODEL_LIST = [
   'gemini-1.5-flash',
   'gemini-1.5-flash-latest',
@@ -14,15 +15,12 @@ const MODEL_LIST = [
 ];
 
 export const getGeminiClient = () => {
-  // Normal access via Vite environment
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   const defaultKey = "AIzaSyAk2qBmeaW8TWsJU9nUWeGGlSpTkPfGUV8";
-
-  // Sanitize
   const cleanKey = (apiKey || "").trim().replace(/^["']|["']$/g, '');
 
   if (!cleanKey || cleanKey === defaultKey) {
-    console.warn("[GEMINI] No valid key found, using default (limited).");
+    console.warn("[GEMINI] Using demo key.");
     return new GoogleGenerativeAI(cleanKey || defaultKey);
   }
 
@@ -34,15 +32,20 @@ async function callAI(op: (model: string, ver: string) => Promise<any>) {
   for (const model of MODEL_LIST) {
     for (const ver of API_VERSIONS) {
       try {
+        console.log(`[GEMINI] Trying ${model} on ${ver}...`);
         return await op(model, ver);
       } catch (err: any) {
         const msg = err.message || "Error";
+        // If 400 about responseMimeType, we know it's a version mismatch, don't scream too loud
+        console.warn(`[GEMINI] ${model} on ${ver} failed:`, msg);
         errors.push(`${model}(${ver}): ${msg}`);
+
+        // If it's 403, our key is definitively rejected for this project
         if (msg.includes("403") || msg.includes("401")) throw err;
       }
     }
   }
-  throw new Error(`AI Failure: ${errors[0]}`);
+  throw new Error(`Erreur Gemini : ${errors.join(" | ")}`);
 }
 
 export const extractContactFromImage = async (base64Image: string) => {
