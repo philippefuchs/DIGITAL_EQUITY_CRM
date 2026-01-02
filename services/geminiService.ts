@@ -1,20 +1,20 @@
-
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, Part } from "@google/generative-ai";
 
 // Initialize the API client
 export const getGeminiClient = () => {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  const defaultKey = "AIzaSyAk2qBmeaW8TWsJU9nUWeDGlSpTkPfGUV8";
+  const defaultKey = "AIzaSyAk2qBmeaW8TWsJU9nUWeGGlSpTkPfGUV8";
 
   // Sanitize API Key (remove spaces/quotes if accidental)
   const cleanKey = apiKey ? apiKey.trim().replace(/^["']|["']$/g, '') : "";
 
-  // Explicit string concatenation to avoid backtick issues in some environments
-  console.log("[DEBUG] Using API Key: " + (cleanKey ? cleanKey.substring(0, 10) + "..." + cleanKey.slice(-4) : "NONE"));
+  // Mask for logging
+  const maskedKey = cleanKey ? cleanKey.substring(0, 5) + "..." + cleanKey.slice(-3) : "NONE";
+  console.log("[DEBUG] Using API Key: " + maskedKey);
 
   if (!cleanKey) {
     console.error("CRITICAL: No VITE_GEMINI_API_KEY found.");
-    throw new Error("Configuration manquante : Clé API non trouvée sur Vercel.");
+    throw new Error("Configuration manquante : Clé API non trouvée sur Vercel. 👉 Vérifiez que VITE_GEMINI_API_KEY est bien configurée pour TOUS les environnements (Production, Preview, Development) dans Vercel.");
   }
 
   if (cleanKey === defaultKey) {
@@ -25,48 +25,30 @@ export const getGeminiClient = () => {
 };
 
 // --- ROBUST FALLBACK MECHANISM ---
-// List of models to try in order of preference (Fastest/Cheapest -> Most Capable -> Legacy Stable)
-const MODEL_FALLBACK_LIST = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+const MODEL_FALLBACK_LIST = ['gemini-1.5-flash', 'gemini-1.5-flash-latest', 'gemini-1.5-pro', 'gemini-1.0-pro', 'gemini-pro'];
 
-type ModelOperation = (model: any) => Promise<any>;
+type ModelOperation = (modelName: string) => Promise<any>;
 
-/**
- * Tries to execute a generative AI operation across a list of models.
- * If 404 (Model Not Found) or 403 (Permission) occurs, it retries with the next model.
- */
 async function executeWithFallback(operation: ModelOperation) {
-  const genAI = getGeminiClient();
   let errors: string[] = [];
 
   for (const modelName of MODEL_FALLBACK_LIST) {
     try {
       console.log("Attempting generation with model:", modelName);
-      // Instantiate model
-      // Note: We don't pass specific configs here, the operation function configures the model.
-      // Actually, we need to let the operation create the model instance with the specific config it needs.
-
-      // Re-architecture: We pass the modelName to the operation function.
       return await operation(modelName);
     } catch (err: any) {
       const msg = err.message || JSON.stringify(err);
       console.warn(`Model ${modelName} failed:`, msg);
       errors.push(`${modelName}: ${msg}`);
 
-      // Only retry on specific errors
-      const isModelError = msg.includes("not found") || msg.includes("404") || msg.includes("supported") || msg.includes("400") || msg.includes("403");
-
-      if (!isModelError) {
-        // strict break on non-model errors (like network/auth if definitive)? 
-        // actually 403 IS auth, so we should continue to see if another model works? 
-        // No, 403 on API key applies to all.
-        // But let's keep trying just in case it's a model specific permission.
+      if (msg.includes("403") || msg.includes("401") || msg.includes("API_KEY_INVALID")) {
+        throw new Error(`Erreur d'authentification (403/401) : Votre clé API est rejetée par Google. (Détails: ${msg})`);
       }
     }
   }
 
   console.error("All models failed.");
-  // Throw a summarized error for the UI
-  throw new Error(`Échec de génération IA sur tous les modèles (${MODEL_FALLBACK_LIST.length}). Détails: ${errors.join(" | ")} \n\n 👉 CONSEIL : Avez-vous pensé à REDÉPLOYER Vercel après avoir changé la clé API ?`);
+  throw new Error(`Échec de génération IA (${MODEL_FALLBACK_LIST.length} modèles testés). \n\nDétails: ${errors.join(" | ")} \n\n 👉 CONSEILS : \n1. Avez-vous REDÉPLOYÉ Vercel ? \n2. La clé est-elle active pour "Production" et "Preview" ? \n3. Essayez de créer une clé NEUVE dans un NOUVEAU projet sur AI Studio.`);
 }
 
 // --- Extraction visuelle de carte de visite ---
@@ -93,14 +75,10 @@ export const extractContactFromImage = async (base64Image: string) => {
       }
     });
 
-    // Remove header if present to get pure base64
     const cleanBase64 = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-
-    const parts = [
+    const parts: Part[] = [
       { inlineData: { data: cleanBase64, mimeType: "image/jpeg" } },
-      {
-        text: `Analyse cette carte de visite. Extrais les infos en JSON: Prénom, Nom, Poste, Société, Email, Téléphone, Site Web, LinkedIn.`
-      }
+      { text: "Analyse cette carte de visite. Extrais les infos en JSON: Prénom, Nom, Poste, Société, Email, Téléphone, Site Web, LinkedIn." }
     ];
 
     const result = await model.generateContent(parts);
@@ -115,7 +93,7 @@ export const enrichContactFromText = async (text: string) => {
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: modelName,
-      systemInstruction: `Tu es un Expert OSINT. Trouve les contacts (Email/Tel) d'une personne.`,
+      systemInstruction: "Tu es un Expert OSINT. Trouve les contacts (Email/Tel) d'une personne.",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -177,7 +155,7 @@ export const scoreLead = async (contact: any) => {
 
     const model = genAI.getGenerativeModel({
       model: modelName,
-      systemInstruction: `Lead Scoring Expert. 0-100. JSON Output.`,
+      systemInstruction: "Lead Scoring Expert. 0-100. JSON Output.",
       generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -195,7 +173,6 @@ export const scoreLead = async (contact: any) => {
     const response = await result.response;
     const data = JSON.parse(response.text() || "{}");
 
-    // Fallback logic
     let finalScore = typeof data.score === 'number' ? Math.round(data.score) : 0;
     const title = (contact.title || '').toLowerCase();
     if (finalScore < 50 && (title.includes('ceo') || title.includes('pdg') || title.includes('founder'))) {
@@ -225,11 +202,6 @@ const LANGUAGE_MAP: Record<string, string> = {
   'he': 'Hebrew (Ivrit)'
 };
 
-// --- AI LinkedIn Carousel Generator ---
-// SIMPLIFIED SCHEMA FOR GEMINI-PRO COMPATIBILITY
-// Some older models struggle with complex nested schemas in JSON mode, so we simplify where possible or accept potentially string results and try parsing.
-// But 1.5-flash is robust. If we fallback to gemini-pro (1.0), it supports JSON mode but maybe less strict.
-
 export const getCarouselIdeas = async (userActivity: string, language: string = 'fr') => {
   return executeWithFallback(async (modelName) => {
     const genAI = getGeminiClient();
@@ -238,8 +210,6 @@ export const getCarouselIdeas = async (userActivity: string, language: string = 
     const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
-        // Remove Schema for gemini-pro if it fails? No, standard SDK supports it for gemini-content too usually.
-        // Keep it for now.
         responseMimeType: "application/json",
         responseSchema: {
           type: SchemaType.ARRAY,
@@ -297,7 +267,6 @@ export const generateLinkedInPostOptions = async (topic: string, slides: any[], 
   return executeWithFallback(async (modelName) => {
     const genAI = getGeminiClient();
     const langName = LANGUAGE_MAP[language] || 'Français';
-
     const slidesText = slides.map((s: any, i: number) => `S${i + 1}: ${s.title} - ${s.content}`).join('\n');
 
     const model = genAI.getGenerativeModel({
