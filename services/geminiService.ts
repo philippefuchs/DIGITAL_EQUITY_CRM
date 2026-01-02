@@ -1,14 +1,17 @@
-
+```
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 // Initialize the API client
 export const getGeminiClient = () => {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "AIzaSyAk2qBmeaW8TWsJU9nUWeDGlSpTkPfGUV8";
-  if (!apiKey) {
-    console.error("VITE_GEMINI_API_KEY is missing!");
-    throw new Error("API key not found. Please set VITE_GEMINI_API_KEY.");
-  }
-  return new GoogleGenerativeAI(apiKey);
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const defaultKey = "AIzaSyAk2qBmeaW8TWsJU9nUWeDGlSpTkPfGUV8";
+    
+    // Check if we are using the invalid placeholder
+    if (!apiKey || apiKey === defaultKey) {
+        console.error("CRITICAL: No valid VITE_GEMINI_API_KEY found. Using placeholder which will fail.");
+        throw new Error("Configuration manquante : Clé API Gemini non détectée. Veuillez ajouter VITE_GEMINI_API_KEY dans Vercel.");
+    }
+    return new GoogleGenerativeAI(apiKey);
 };
 
 // --- ROBUST FALLBACK MECHANISM ---
@@ -27,7 +30,7 @@ async function executeWithFallback(operation: ModelOperation) {
 
   for (const modelName of MODEL_FALLBACK_LIST) {
     try {
-      console.log(`🤖 Attempting generation with model: ${modelName}`);
+      console.log(`🤖 Attempting generation with model: ${ modelName } `);
       // Instantiate model
       // Note: We don't pass specific configs here, the operation function configures the model.
       // Actually, we need to let the operation create the model instance with the specific config it needs.
@@ -35,7 +38,7 @@ async function executeWithFallback(operation: ModelOperation) {
       // Re-architecture: We pass the modelName to the operation function.
       return await operation(modelName);
     } catch (err: any) {
-      console.warn(`⚠️ Model ${modelName} failed:`, err.message || err);
+      console.warn(`⚠️ Model ${ modelName } failed: `, err.message || err);
       lastError = err;
 
       // Only retry on specific errors that indicate model unavailability
@@ -84,7 +87,7 @@ export const extractContactFromImage = async (base64Image: string) => {
     const parts = [
       { inlineData: { data: cleanBase64, mimeType: "image/jpeg" } },
       {
-        text: `Analyse cette carte de visite. Extrais les infos en JSON: Prénom, Nom, Poste, Société, Email, Téléphone, Site Web, LinkedIn.`
+        text: `Analyse cette carte de visite.Extrais les infos en JSON: Prénom, Nom, Poste, Société, Email, Téléphone, Site Web, LinkedIn.`
       }
     ];
 
@@ -100,32 +103,32 @@ export const enrichContactFromText = async (text: string) => {
     const genAI = getGeminiClient();
     const model = genAI.getGenerativeModel({
       model: modelName,
-      systemInstruction: `Tu es un Expert OSINT. Trouve les contacts (Email/Tel) d'une personne.`,
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: SchemaType.OBJECT,
-          properties: {
-            firstName: { type: SchemaType.STRING },
-            lastName: { type: SchemaType.STRING },
-            company: { type: SchemaType.STRING },
-            title: { type: SchemaType.STRING },
-            email: { type: SchemaType.STRING },
-            phone: { type: SchemaType.STRING },
-            website: { type: SchemaType.STRING },
-            sector: { type: SchemaType.STRING },
-            notes: { type: SchemaType.STRING },
-            matchConfidence: { type: SchemaType.STRING }
-          },
-          required: ["firstName", "lastName", "company"]
-        }
-      }
+      systemInstruction: `Tu es un Expert OSINT.Trouve les contacts(Email / Tel) d'une personne.`,
+generationConfig: {
+  responseMimeType: "application/json",
+    responseSchema: {
+    type: SchemaType.OBJECT,
+      properties: {
+      firstName: { type: SchemaType.STRING },
+      lastName: { type: SchemaType.STRING },
+      company: { type: SchemaType.STRING },
+      title: { type: SchemaType.STRING },
+      email: { type: SchemaType.STRING },
+      phone: { type: SchemaType.STRING },
+      website: { type: SchemaType.STRING },
+      sector: { type: SchemaType.STRING },
+      notes: { type: SchemaType.STRING },
+      matchConfidence: { type: SchemaType.STRING }
+    },
+    required: ["firstName", "lastName", "company"]
+  }
+}
     });
 
-    const result = await model.generateContent(`IDENTIFIER COORDONNÉES DIRECTES : "${text}"`);
-    const response = await result.response;
-    const data = JSON.parse(response.text());
-    return { data, sources: [] };
+const result = await model.generateContent(`IDENTIFIER COORDONNÉES DIRECTES : "${text}"`);
+const response = await result.response;
+const data = JSON.parse(response.text());
+return { data, sources: [] };
   });
 };
 
