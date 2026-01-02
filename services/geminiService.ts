@@ -1,178 +1,110 @@
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 /**
- * --- GEMINI SERVICE (ULTRA-ROBUST) ---
- * This version handles regional restrictions by falling back to plain text 
- * if JSON Mode/Schema is unsupported (400/404 errors).
+ * --- GEMINI SERVICE (DIAGNOSTIC) ---
+ * Show full errors to identify the 404/403 cause.
  */
 
-const MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.0-pro'];
+const MODELS = [
+  'gemini-1.5-flash',
+  'gemini-1.5-pro',
+  'gemini-2.0-flash-exp'
+];
 
 export const getGeminiClient = () => {
-  const rawKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-  // Sanitize and provide a fallback demo key if absolutely empty
-  const cleanKey = rawKey.trim().replace(/^["']|["']$/g, '') || "AIzaSyAk2qBmeaW8TWsJU9nUWeGGlSpTkPfGUV8";
-
-  // Diagnostic logging for production (masked)
-  const masked = cleanKey.length > 10 ? `${cleanKey.substring(0, 6)}...${cleanKey.slice(-4)}` : "INVALID_KEY";
-  console.log(`[AI SERVICE] Initialized with key: ${masked}`);
-
-  return {
-    client: new GoogleGenerativeAI(cleanKey),
-    maskedKey: masked
-  };
+  const k = import.meta.env.VITE_GEMINI_API_KEY || "";
+  const clean = k.trim().replace(/^["']|["']$/g, '');
+  // Show key preview in console for the user to verify
+  const masked = clean.length > 10 ? `${clean.substring(0, 6)}...${clean.slice(-4)}` : "CLÉ_ABSENTE";
+  return { genAI: new GoogleGenerativeAI(clean), masked };
 };
 
-/**
- * AI CALLER WITH LEGACY FALLBACK
- */
-async function callAI(
-  prompt: string,
-  schema: any,
-  options: { isJson?: boolean, system?: string } = {}
-) {
-  const { client, maskedKey } = getGeminiClient();
-  const isJson = options.isJson !== false;
+async function runAI(p: string, s: any, j: boolean = true) {
+  const { genAI, masked } = getGeminiClient();
   const errors: string[] = [];
 
-  for (const modelName of MODELS) {
-    // --- PHASE 1: MODERN (v1beta + Schema) ---
+  for (const m of MODELS) {
+    // Attempt Modern
     try {
-      console.log(`[AI] PHASE 1: ${modelName} (Modern/v1beta)`);
-      const model = client.getGenerativeModel({
-        model: modelName,
-        systemInstruction: options.system,
-        generationConfig: isJson ? {
-          responseMimeType: "application/json",
-          responseSchema: schema
-        } : {}
+      const model = genAI.getGenerativeModel({
+        model: m,
+        generationConfig: j ? { responseMimeType: "application/json", responseSchema: s } : {}
       }, { apiVersion: 'v1beta' });
-
-      const result = await model.generateContent(prompt);
-      const text = (await result.response).text();
-      return isJson ? JSON.parse(text) : text;
-    } catch (err: any) {
-      const msg = err.message || "Unknown error";
-      console.warn(`[AI] Modern mode failed for ${modelName}:`, msg);
-      errors.push(`${modelName}(beta): ${msg.substring(0, 80)}`);
-
-      // If it's a definitive Auth error, don't retry models
-      if (msg.includes("403") || msg.includes("401") || msg.includes("API_KEY_INVALID")) {
-        throw new Error(`[AUTH ERROR] La clé API [${maskedKey}] est rejetée par Google (403/401). Vérifiez vos restrictions Google Cloud.`);
-      }
+      const r = await model.generateContent(p);
+      return j ? JSON.parse((await r.response).text()) : (await r.response).text();
+    } catch (e: any) {
+      const msg = e.message || JSON.stringify(e);
+      errors.push(`${m}(beta): ${msg}`);
+      if (msg.includes("403")) throw new Error(`[403] Clé [${masked}] rejetée. Vérifiez l'activation de l'API.`);
     }
 
-    // --- PHASE 2: LEGACY (v1 + Text + Regex Parse) ---
+    // Attempt Legacy
     try {
-      console.log(`[AI] PHASE 2: ${modelName} (Legacy/v1)`);
-      const model = client.getGenerativeModel({
-        model: modelName,
-        systemInstruction: options.system
-      }, { apiVersion: 'v1' });
-
-      const legacyPrompt = isJson
-        ? `${prompt}\n\nIMPORTANT: Réponds uniquement avec un objet JSON valide suivant exactement cette structure: ${JSON.stringify(schema)}`
-        : prompt;
-
-      const result = await model.generateContent(legacyPrompt);
-      const text = (await result.response).text();
-
-      if (isJson) {
-        // Find potential JSON block in case of conversational noise
+      const model = genAI.getGenerativeModel({ model: m }, { apiVersion: 'v1' });
+      const prompt = j ? `${p}\n\nRETOURNE UNIQUEMENT DU JSON (PAS DE TEXTE AUTOUR): ${JSON.stringify(s)}` : p;
+      const r = await model.generateContent(prompt);
+      const text = (await r.response).text();
+      if (j) {
         const match = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
         return JSON.parse(match ? match[0] : text);
       }
       return text;
-    } catch (err: any) {
-      console.warn(`[AI] Legacy mode failed for ${modelName}`);
-      errors.push(`${modelName}(v1): ${err.message?.substring(0, 80)}`);
+    } catch (e: any) {
+      errors.push(`${m}(v1): ${e.message}`);
     }
   }
 
-  throw new Error(`ÉCHEC IA GLOBAL (${maskedKey}). Détails: ${errors.join(" | ")}`);
+  // Return the FULL first error message for diagnostic
+  throw new Error(`ÉCHEC IA (Clé: ${masked}). Erreur : ${errors[0]}`);
 }
 
-// --- FEATURES ---
-
-export const getCarouselIdeas = async (userActivity: string, language: string = 'fr') => {
-  return await callAI(`Donne 5 idées de sujets LinkedIn pour: "${userActivity}". Langue: ${language}.`, {
-    type: SchemaType.ARRAY,
-    items: { type: SchemaType.STRING }
-  });
+export const getCarouselIdeas = async (act: string, lang: string = 'fr') => {
+  return await runAI(`LinkedIn topics for: ${act} (lang: ${lang})`, { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } });
 };
 
-export const generateCarouselScript = async (topic: string, language: string = 'fr') => {
-  return await callAI(`Écris un script de carousel LinkedIn (6 slides) sur: "${topic}". Langue: ${language}. Hook, Problème, Solution, Preuve, CTA.`, {
+export const generateCarouselScript = async (topic: string, lang: string = 'fr') => {
+  return await runAI(`Script 6 slides for "${topic}" in ${lang}.`, {
     type: SchemaType.ARRAY,
     items: {
       type: SchemaType.OBJECT,
-      properties: {
-        title: { type: SchemaType.STRING },
-        content: { type: SchemaType.STRING },
-        visual: { type: SchemaType.STRING }
-      },
-      required: ["title", "content", "visual"]
+      properties: { title: { type: SchemaType.STRING }, content: { type: SchemaType.STRING }, visual: { type: SchemaType.STRING } }
     }
   });
 };
 
-export const generateLinkedInPostOptions = async (topic: string, slides: any[], customInstruction: string = "", language: string = 'fr') => {
-  return await callAI(`À partir de ces slides: ${JSON.stringify(slides)}, écris 3 posts LinkedIn sur le thème "${topic}". Consigne: ${customInstruction}. Langue: ${language}.`, {
-    type: SchemaType.ARRAY,
-    items: {
-      type: SchemaType.OBJECT,
-      properties: {
-        tone: { type: SchemaType.STRING },
-        hook: { type: SchemaType.STRING },
-        content: { type: SchemaType.STRING }
-      },
-      required: ["tone", "hook", "content"]
-    }
-  });
-};
-
-export const scoreLead = async (contact: any) => {
+export const scoreLead = async (c: any) => {
   try {
-    const d = await callAI(`Analyse ce prospect B2B 0-100: ${JSON.stringify(contact)}`, {
+    const d = await runAI(`Score 0-100: ${JSON.stringify(c)}`, {
       type: SchemaType.OBJECT,
-      properties: {
-        score: { type: SchemaType.NUMBER },
-        reason: { type: SchemaType.STRING }
-      }
+      properties: { score: { type: SchemaType.NUMBER }, reason: { type: SchemaType.STRING } }
     });
-    return { score: d.score || 50, reason: d.reason || "Ok", summary: "Analyse terminée." };
-  } catch (e) {
-    return { score: 50, reason: "N/A", summary: "Service indisponible." };
+    return { score: d.score || 50, reason: d.reason || "Ok", summary: "Fait" };
+  } catch {
+    return { score: 50, reason: "Erreur", summary: "N/A" };
   }
 };
 
-export const enrichContactFromText = async (text: string) => {
-  const d = await callAI(`Extrais les infos prospect de ce texte: "${text}"`, {
+export const enrichContactFromText = async (t: string) => {
+  const d = await runAI(`Enrich: ${t}`, {
     type: SchemaType.OBJECT,
-    properties: {
-      firstName: { type: SchemaType.STRING },
-      lastName: { type: SchemaType.STRING },
-      company: { type: SchemaType.STRING },
-      email: { type: SchemaType.STRING }
-    },
-    required: ["firstName", "lastName", "company"]
+    properties: { firstName: { type: SchemaType.STRING }, lastName: { type: SchemaType.STRING }, company: { type: SchemaType.STRING } }
   });
   return { data: d, sources: [] };
 };
 
-export const generateCampaignContent = async (name: string, company: string, topic: string) => {
-  return await callAI(`Écris un email de prospection à ${name} (${company}) sur le sujet: ${topic}.`, {}, { isJson: false });
-};
+export const generateCampaignContent = async (n: string, c: string, t: string) => await runAI(`Email to ${n} at ${c} for ${t}`, {}, false);
 
-export const extractContactFromImage = async () => ({
-  firstName: "Extraction",
-  lastName: "Non Dispo",
-  company: "Veuillez remplir manuellement"
-});
+export const extractContactFromImage = async () => ({ firstName: "Non", lastName: "Dispo", company: "Remplir manuel" });
+
+export const generateLinkedInPostOptions = async (t: string, s: any[], c: string = "", l: string = 'fr') => {
+  return await runAI(`Posts for ${t}. Slides: ${JSON.stringify(s)}. Instruction: ${c}`, {
+    type: SchemaType.ARRAY,
+    items: { type: SchemaType.OBJECT, properties: { tone: { type: SchemaType.STRING }, content: { type: SchemaType.STRING } } }
+  });
+};
 
 export const editProspectProfileImage = async () => null;
 
-// --- UTILS ---
 export function decodeBase64(b: string): Uint8Array {
   const s = atob(b);
   const bt = new Uint8Array(s.length);
@@ -189,10 +121,10 @@ export function encodeToBase64(bt: Uint8Array): string {
 export async function decodeAudioData(d: Uint8Array, ctx: AudioContext, sr: number, ch: number): Promise<AudioBuffer> {
   const d16 = new Int16Array(d.buffer);
   const fc = d16.length / ch;
-  const b = ctx.createBuffer(ch, fc, sr);
+  const buffer = ctx.createBuffer(ch, fc, sr);
   for (let c = 0; c < ch; c++) {
-    const cd = b.getChannelData(c);
+    const cd = buffer.getChannelData(c);
     for (let i = 0; i < fc; i++) cd[i] = d16[i * ch + c] / 32768.0;
   }
-  return b;
+  return buffer;
 }
