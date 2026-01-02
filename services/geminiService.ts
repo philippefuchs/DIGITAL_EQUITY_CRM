@@ -2,84 +2,83 @@ import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 
 /**
  * --- GEMINI SERVICE ---
- * Ultra-robust version with Phase 1 (Modern/v1beta) and Phase 2 (Legacy/v1) fallback.
- * Optimized for Vision/OCR stability.
+ * Ultimate diagnostic version. No truncation. Full error visibility.
  */
 
-const MODELS = [
-  'gemini-1.5-flash',
-  'gemini-1.5-pro',
-  'gemini-2.0-flash-exp'
-];
+const DEFAULT_MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
 
 export const getGeminiClient = () => {
   const k = import.meta.env.VITE_GEMINI_API_KEY || "";
   const clean = k.trim().replace(/^["']|["']$/g, '');
-  const masked = clean.length > 10 ? `${clean.substring(0, 6)}...${clean.slice(-4)}` : "CLÉ_ABSENTE";
+  const masked = clean.length > 10 ? `${clean.substring(0, 6)}...${clean.slice(-4)}` : "CLÉ_INCORMETTE";
   return { genAI: new GoogleGenerativeAI(clean || "AIzaSyAk2qBmeaW8TWsJU9nUWeGGlSpTkPfGUV8"), masked };
 };
 
-async function runAI(p: string | any[], s: any, j: boolean = true) {
+async function runAI(payload: string | any[], schema: any, isJson: boolean = true, customModels?: string[]) {
   const { genAI, masked } = getGeminiClient();
+  const modelsToTry = customModels || DEFAULT_MODELS;
   const errors: string[] = [];
 
-  for (const m of MODELS) {
-    // Phase 1 : Modern (v1beta)
+  for (const m of modelsToTry) {
+    // MODERN
     try {
-      console.log(`[AI] ${m} - Démarrage Phase 1 (Modern/v1beta)`);
+      console.log(`[AI] ${m} v1beta init`);
       const model = genAI.getGenerativeModel({
         model: m,
-        generationConfig: j ? { responseMimeType: "application/json", responseSchema: s } : {}
+        generationConfig: isJson ? { responseMimeType: "application/json", responseSchema: schema } : {}
       }, { apiVersion: 'v1beta' });
 
-      const r = await model.generateContent(p);
-      const res = await r.response;
-      console.log(`[AI] ${m} - Succès Phase 1`);
-      return j ? JSON.parse(res.text()) : res.text();
+      const result = await Promise.race([
+        model.generateContent(payload),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout 25s")), 25000))
+      ]) as any;
+
+      const res = await result.response;
+      return isJson ? JSON.parse(res.text()) : res.text();
     } catch (e: any) {
-      const msg = e.message || JSON.stringify(e);
-      console.warn(`[AI] ${m} - Phase 1 échouée:`, msg);
-      errors.push(`${m}(beta): ${msg.substring(0, 100)}`);
-      if (msg.includes("403")) throw new Error(`[403] Clé [${masked}] rejetée. Vérifiez votre projet.`);
+      const msg = e.message || "Unknown error";
+      errors.push(`${m}(v1beta): ${msg}`);
+      if (msg.includes("403") || msg.includes("401")) throw new Error(`[AUTH] La clé ${masked} est bloquée (403).`);
     }
 
-    // Phase 2 : Legacy (v1)
+    // LEGACY
     try {
-      console.log(`[AI] ${m} - Démarrage Phase 2 (Legacy/v1)`);
+      console.log(`[AI] ${m} v1 init`);
       const model = genAI.getGenerativeModel({ model: m }, { apiVersion: 'v1' });
-
-      let fp: any = p;
-      if (j) {
-        const instruct = `\n\nRETOURNE UNIQUEMENT DU JSON (PAS DE TEXTE AUTOUR): ${JSON.stringify(s)}`;
-        if (typeof p === 'string') fp = p + instruct;
-        else if (Array.isArray(p)) fp = p.map(part => part.text ? { ...part, text: part.text + instruct } : part);
+      let finalPayload: any = payload;
+      if (isJson) {
+        const instruct = `\n\nJSON strictly: ${JSON.stringify(schema)}`;
+        if (typeof payload === 'string') finalPayload = payload + instruct;
+        else if (Array.isArray(payload)) finalPayload = payload.map(p => p.text ? { ...p, text: p.text + instruct } : p);
       }
 
-      const r = await model.generateContent(fp);
-      const res = await r.response;
-      const text = res.text();
-      console.log(`[AI] ${m} - Succès Phase 2`);
+      const result = await Promise.race([
+        model.generateContent(finalPayload),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout 25s")), 25000))
+      ]) as any;
 
-      if (j) {
+      const res = await result.response;
+      const text = res.text();
+      if (isJson) {
         const match = text.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
         return JSON.parse(match ? match[0] : text);
       }
       return text;
     } catch (e: any) {
-      console.warn(`[AI] ${m} - Phase 2 échouée:`, e.message);
-      errors.push(`${m}(v1): ${e.message?.substring(0, 100)}`);
+      errors.push(`${m}(v1): ${e.message}`);
     }
   }
 
-  throw new Error(`ÉCHEC IA (Clé: ${masked}). Dernier message: ${errors[0]}`);
+  // Concatenate all errors for full vision
+  throw new Error(`ERREUR IA [${masked}]: ${errors.join(' | ')}`);
 }
 
 export const getCarouselIdeas = async (act: string, lang: string = 'fr') => {
-  return await runAI(`LinkedIn topics for: ${act} (lang: ${lang})`, { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } });
+  return runAI(`LinkedIn topics for: ${act} (lang: ${lang})`, { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } });
 };
 
 export const generateCarouselScript = async (topic: string, lang: string = 'fr') => {
-  return await runAI(`Script 6 slides for "${topic}" in ${lang}.`, {
+  return runAI(`Script 6 slides for "${topic}" in ${lang}.`, {
     type: SchemaType.ARRAY,
     items: {
       type: SchemaType.OBJECT,
@@ -96,61 +95,53 @@ export const scoreLead = async (c: any) => {
     });
     return { score: d.score || 50, reason: d.reason || "Ok", summary: "Fait" };
   } catch {
-    return { score: 50, reason: "Erreur", summary: "N/A" };
+    return { score: 50, reason: "N/A", summary: "Erreur" };
   }
 };
 
 export const enrichContactFromText = async (t: string) => {
-  const d = await runAI(`Enrich: ${t}`, {
+  const d = await runAI(`Enrich prospect: ${t}`, {
     type: SchemaType.OBJECT,
     properties: { firstName: { type: SchemaType.STRING }, lastName: { type: SchemaType.STRING }, company: { type: SchemaType.STRING } }
   });
   return { data: d, sources: [] };
 };
 
-export const generateCampaignContent = async (n: string, c: string, t: string) => await runAI(`Email to ${n} at ${c} for ${t}`, {}, false);
+export const generateCampaignContent = async (n: string, c: string, t: string) => runAI(`Email to ${n} at ${c} about ${t}`, {}, false);
 
 export const extractContactFromImage = async (base64Image: string) => {
   const data = base64Image.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
-
-  // Use a specialized prompt for high-precision OCR
   const parts = [
     { inlineData: { data, mimeType: "image/jpeg" } },
     {
-      text: `INSTRUCTION: Analyse cette carte de visite avec une précision extrême. 
-1. Transcris TOUT le texte visible, y compris le texte écrit VERTICALEMENT sur les bords et le texte en TOUT PETIT.
-2. Identifie l'email (format x@y.z) et le téléphone même s'ils sont tournés à 90 degrés.
-3. Retourne UNIQUEMENT un objet JSON avec ces clés: firstName, lastName, title, company, email, phone, website, linkedinUrl.` }
+      text: `ANALYSE CARTE VISITE:
+        1. Lis TOUT (horizontal, vertical, bords).
+        2. Extrais l'email et le téléphone.
+        3. Retourne ce JSON: firstName, lastName, title, company, email, phone, website, linkedinUrl.` }
   ];
 
-  // We temporarily use gemini-1.5-pro for vision as it's MUCH better at OCR for vertical text
-  const originalModels = [...MODELS];
-  try {
-    // Temporarily swap Pro to front for vision accuracy
-    MODELS.sort((a, b) => a.includes('pro') ? -1 : 1);
-    return await runAI(parts, {
-      type: SchemaType.OBJECT,
-      properties: {
-        firstName: { type: SchemaType.STRING },
-        lastName: { type: SchemaType.STRING },
-        company: { type: SchemaType.STRING },
-        title: { type: SchemaType.STRING },
-        email: { type: SchemaType.STRING },
-        phone: { type: SchemaType.STRING },
-        website: { type: SchemaType.STRING },
-        linkedinUrl: { type: SchemaType.STRING },
-      }
-    });
-  } finally {
-    // Restore original order
-    MODELS.splice(0, MODELS.length, ...originalModels);
-  }
+  return runAI(parts, {
+    type: SchemaType.OBJECT,
+    properties: {
+      firstName: { type: SchemaType.STRING },
+      lastName: { type: SchemaType.STRING },
+      company: { type: SchemaType.STRING },
+      title: { type: SchemaType.STRING },
+      email: { type: SchemaType.STRING },
+      phone: { type: SchemaType.STRING },
+      website: { type: SchemaType.STRING },
+      linkedinUrl: { type: SchemaType.STRING },
+    }
+  }, true, ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-pro']);
 };
 
 export const generateLinkedInPostOptions = async (t: string, s: any[], c: string = "", l: string = 'fr') => {
-  return await runAI(`Posts for ${t}. Slides: ${JSON.stringify(s)}. Instruction: ${c}`, {
+  return runAI(`LinkedIn posts for: ${t}. Slides: ${JSON.stringify(s)}. ${c}`, {
     type: SchemaType.ARRAY,
-    items: { type: SchemaType.OBJECT, properties: { tone: { type: SchemaType.STRING }, content: { type: SchemaType.STRING } } }
+    items: {
+      type: SchemaType.OBJECT,
+      properties: { tone: { type: SchemaType.STRING }, content: { type: SchemaType.STRING } }
+    }
   });
 };
 
@@ -172,10 +163,10 @@ export function encodeToBase64(bt: Uint8Array): string {
 export async function decodeAudioData(d: Uint8Array, ctx: AudioContext, sr: number, ch: number): Promise<AudioBuffer> {
   const d16 = new Int16Array(d.buffer);
   const fc = d16.length / ch;
-  const buffer = ctx.createBuffer(ch, fc, sr);
+  const b = ctx.createBuffer(ch, fc, sr);
   for (let c = 0; c < ch; c++) {
-    const cd = buffer.getChannelData(c);
+    const cd = b.getChannelData(c);
     for (let i = 0; i < fc; i++) cd[i] = d16[i * ch + c] / 32768.0;
   }
-  return buffer;
+  return b;
 }
