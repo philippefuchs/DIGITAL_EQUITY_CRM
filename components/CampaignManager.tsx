@@ -326,39 +326,14 @@ const CampaignManager: React.FC = () => {
         payload.accessToken = configToUse.emailjsAccessToken;
       }
 
-      // --- OPEN TRACKING INJECTION ---
-      // 1. Create Email Record first to get ID
-      if (supabase) {
-        try {
-          // REMOVED STRICT REGEX: Trust c.id. If it fails FK, catch block captures it.
-          // This ensures we attempt tracking even if ID format varies.
-          const leadId = c.id;
+      // --- PRE-ENVOI : PRÉPARATION DU TRACKING ---
+      const trackingId = crypto.randomUUID();
+      const baseUrl = 'https://digital-equity-crm.vercel.app';
+      const trackingUrl = `${baseUrl}/api/track?id=${trackingId}`;
+      const pixelHtml = `<img src="${trackingUrl}" width="1" height="1" style="border:0;" alt="" />`;
 
-          const { data: emailRecord, error: dbError } = await supabase
-            .from('emails')
-            .insert([{
-              lead_id: leadId,
-              status: 'sent',
-              subject: payload.template_params.subject,
-              body: payload.template_params.message
-            }])
-            .select()
-            .single();
-
-          if (dbError) {
-            console.error("Tracking Insert Error:", dbError);
-          } else if (emailRecord) {
-            const baseUrl = 'https://digital-equity-crm.vercel.app';
-            const trackingUrl = `${baseUrl}/api/track?id=${emailRecord.tracking_id}`;
-            const pixelHtml = `<img src="${trackingUrl}" width="1" height="1" style="border:0;" alt="" />`;
-
-            // Inject into params
-            payload.template_params.tracking_pixel = pixelHtml;
-          }
-        } catch (err) {
-          console.error("Tracking Logic Failed completely:", err);
-        }
-      }
+      // Inject into params
+      payload.template_params.tracking_pixel = pixelHtml;
       // -------------------------------
 
       try {
@@ -370,6 +345,21 @@ const CampaignManager: React.FC = () => {
 
         if (res.ok) {
           successCount++;
+
+          // --- POST-ENVOI : ENREGISTREMENT EN BASE SEULEMENT SI SUCCÈS ---
+          if (supabase) {
+            const leadId = c.id;
+            await supabase
+              .from('emails')
+              .insert([{
+                lead_id: leadId,
+                campaign_id: campaign.id,
+                status: 'sent',
+                tracking_id: trackingId, // Use the generated ID
+                subject: payload.template_params.subject,
+                body: payload.template_params.message
+              }]);
+          }
         } else {
           const errorText = await res.text();
           lastError = `Status ${res.status}: ${errorText} `;
@@ -767,7 +757,8 @@ const CampaignManager: React.FC = () => {
                               name: newCampaignData.name || "Sans titre",
                               subject: newCampaignData.subject,
                               body: newCampaignData.template,
-                              category: 'Custom'
+                              category: 'Custom',
+                              createdAt: new Date().toISOString()
                             };
                             const newList = [...libraryTemplates, newTpl];
                             setLibraryTemplates(newList);

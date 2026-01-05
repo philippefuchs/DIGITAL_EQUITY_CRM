@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   FileSpreadsheet, Download, Users, UserCheck, Calendar,
   HelpCircle, RefreshCw, Briefcase, Mail, ChevronRight,
-  TrendingUp, Database, ArrowRight, ShieldCheck, Clock, FileText, Zap, Ticket, UserX
+  TrendingUp, Database, ArrowRight, ShieldCheck, Clock, FileText, Zap, Ticket, UserX, Target, Info, Eraser
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Contact, Campaign, OutcomeDetail } from '../types';
@@ -14,59 +14,53 @@ const ReportingManager: React.FC = () => {
   const [emails, setEmails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString());
+  const [selectedCampId, setSelectedCampId] = useState<string>('all');
 
   const loadData = useCallback(async () => {
     if (!supabase) return;
     setLoading(true);
     try {
-      const { data: cData, error: cError } = await supabase.from('contacts').select('*');
-      const { data: campData, error: campError } = await supabase.from('campaigns').select('*');
-      const { data: eData, error: eError } = await supabase.from('emails').select('*');
+      const { data: c } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false });
+      const { data: p } = await supabase.from('contacts').select('*');
+      const { data: e } = await supabase.from('emails').select('*').order('created_at', { ascending: false });
 
-      if (cError) throw cError;
-      if (campError) throw campError;
-      if (eError) throw eError;
+      if (c) {
+        setCampaigns(c.map((camp: any) => {
+          let tIds: string[] = [];
+          const rawIds = camp.target_contact_ids || camp.targetContactIds || camp.target_ids;
+          if (Array.isArray(rawIds)) tIds = rawIds.map(id => String(id));
+          else if (typeof rawIds === 'string') {
+            try {
+              const parsed = JSON.parse(rawIds);
+              if (Array.isArray(parsed)) tIds = parsed.map(id => String(id));
+            } catch {
+              tIds = rawIds.split(',').map(id => id.trim()).filter(id => id);
+            }
+          }
 
-      if (cData) {
-        const mappedContacts = (cData as any[]).map(c => ({
-          ...c,
-          id: String(c.id),
-          firstName: (c.first_name || c.firstName || '').toString().trim(),
-          lastName: (c.last_name || c.lastName || '').toString().trim(),
-          company: (c.company || '').toString().trim(),
-          title: (c.title || '').toString().trim(),
-          email: (c.email || '').toString().toLowerCase().trim(),
-          phone: (c.phone || '').toString().trim(),
-          sector: (c.sector || '').toString().trim(),
-          status: (c.status || '').toString().trim(),
-          category: (c.category || 'prospect').toString().toLowerCase().trim(),
-          linkedinUrl: c.linkedin_url || c.linkedinUrl || '',
-          createdAt: c.created_at || c.createdAt
+          return {
+            ...camp,
+            id: String(camp.id),
+            outcomes: camp.outcomes || {},
+            targetContactIds: tIds,
+            createdAt: camp.created_at || camp.createdAt
+          };
         }));
-        setContacts(mappedContacts);
-      } else {
-        setContacts([]);
       }
-
-      if (campData) {
-        setCampaigns((campData as any[]).map(camp => ({
-          ...camp,
-          id: String(camp.id),
-          outcomes: camp.outcomes || {}
+      if (p) {
+        setContacts(p.map((item: any) => ({
+          ...item,
+          id: String(item.id),
+          firstName: (item.first_name || item.firstName || item.prenom || '').toString().trim(),
+          lastName: (item.last_name || item.lastName || item.nom || '').toString().trim(),
+          company: (item.company || item.societe || '').toString().trim(),
+          email: (item.email || '').toString().trim().toLowerCase()
         })));
-      } else {
-        setCampaigns([]);
       }
-
-      if (eData) {
-        setEmails(eData);
-      } else {
-        setEmails([]);
-      }
-
+      if (e) setEmails(e);
       setLastSync(new Date().toLocaleTimeString());
-    } catch (error) {
-      console.error("Reporting load error:", error);
+    } catch (err) {
+      console.error(err);
     } finally {
       setLoading(false);
     }
@@ -76,359 +70,315 @@ const ReportingManager: React.FC = () => {
     if (isSupabaseConfigured()) loadData();
   }, [loadData]);
 
-  const downloadCSV = (filename: string, headers: string[], rows: any[][]) => {
-    const csvContent = [
-      headers.join(';'),
-      ...rows.map(row => row.map(cell => {
-        const str = String(cell || '').replace(/;/g, ',').replace(/\n/g, ' ').replace(/"/g, '""');
-        return `"${str}"`;
-      }).join(';'))
-    ].join('\n');
+  const handleCleanup = async () => {
+    if (selectedCampId === 'all' || !supabase) return;
+    const camp = campaigns.find(c => c.id === selectedCampId);
+    if (!camp) return;
 
-    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", filename);
-    link.click();
+    if (!window.confirm(`Voulez-vous vraiment supprimer l'historique de tracking pour "${camp.name}" ?\n\nCela nettoiera les logs erronés (doublons/erreurs) de cette campagne.\n\nNote : Le compteur officiel de 13 envoyés sur la carte restera inchangé.`)) return;
+
+    try {
+      setLoading(true);
+
+      // 1. Delete by campaign_id (the new robust way)
+      const { error: errId } = await supabase.from('emails').delete().eq('campaign_id', selectedCampId);
+      if (errId) console.error("Cleanup by ID failed:", errId);
+
+      // 2. Delete by Subject (legacy way for logs without campaign_id)
+      if (camp.subject) {
+        const baseSubject = camp.subject.replace(/\{\{.*?\}\}/g, '').trim();
+        if (baseSubject.length > 5) {
+          const { error: errSub } = await supabase.from('emails')
+            .delete()
+            .ilike('subject', `%${baseSubject}%`)
+            .in('lead_id', camp.targetContactIds);
+          if (errSub) console.error("Cleanup by subject fallback failed:", errSub);
+        }
+      }
+
+      await loadData();
+      alert("Historique nettoyé. Votre liste détaillée est maintenant synchronisée !");
+    } catch (err) {
+      alert("Erreur lors du nettoyage : " + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const stats = useMemo(() => {
-    const prospects = contacts.filter(c => c.category === 'prospect');
-    const members = contacts.filter(c => c.category === 'member');
+    const relevantCampaigns = selectedCampId === 'all'
+      ? campaigns
+      : campaigns.filter(c => c.id === selectedCampId);
 
-    let registeredCount = 0;
-    let meetingCount = 0;
-    let positiveCount = 0;
-    let negativeCount = 0;
-    let nspCount = 0;
-
-    campaigns.forEach(camp => {
-      if (camp.outcomes) {
-        Object.values(camp.outcomes).forEach((o: any) => {
-          const outcome = o as OutcomeDetail;
-          if (outcome.status === 'Registered') registeredCount += (outcome.attendees || 1);
-          if (outcome.status === 'Meeting') meetingCount++;
-          if (outcome.status === 'Positive') positiveCount++;
-          if (outcome.status === 'Negative') negativeCount++;
-          if (outcome.status === 'None') nspCount++;
-        });
-      }
+    const targetContactIds = new Set<string>();
+    relevantCampaigns.forEach(c => {
+      (c.targetContactIds || []).forEach(id => targetContactIds.add(String(id)));
     });
 
-    const unreadEmails = emails.filter(e => e.status !== 'opened'); // 'sent' usually
+    const impactedCount = targetContactIds.size;
+    const sentCount = emails.filter(e => {
+      if (selectedCampId === 'all') return true;
+      const camp = campaigns.find(c => c.id === selectedCampId);
+      if (!camp) return false;
 
-    return { prospects, members, registeredCount, meetingCount, positiveCount, negativeCount, nspCount, unreadEmails };
-  }, [contacts, campaigns, emails]);
+      // Matching logic: ID or Subject+Date
+      if (String(e.campaign_id) === String(camp.id)) return true;
+      if (!e.campaign_id && camp.subject && e.subject && camp.createdAt) {
+        const baseSubject = camp.subject.replace(/\{\{.*?\}\}/g, '').trim();
+        const isMatch = baseSubject.length > 5 && e.subject.includes(baseSubject);
+        const isAfter = new Date(e.created_at || e.createdAt) >= new Date(camp.createdAt);
+        return isMatch && isAfter;
+      }
+      return false;
+    }).length;
 
-  const exportProspects = () => {
-    const headers = ['Société', 'Prénom', 'Nom', 'Poste', 'Email', 'Téléphone', 'Secteur', 'Statut', 'Date Création'];
-    const rows = stats.prospects.map(c => [
-      c.company, c.firstName, c.lastName, c.title, c.email, c.phone, c.sector, c.status, c.createdAt || ''
-    ]);
-    downloadCSV(`audit_prospects_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
-  };
+    const positiveCount = relevantCampaigns.reduce((acc, camp) => {
+      const outcomes = camp.outcomes || {};
+      return acc + Object.values(outcomes).filter((o: any) =>
+        ['Meeting', 'Positive', 'Registered'].includes(o.status)
+      ).length;
+    }, 0);
 
-  const exportMembers = () => {
-    const headers = ['Société', 'Prénom', 'Nom', 'Poste', 'Email', 'Téléphone', 'Secteur', 'Statut', 'Date Création'];
-    const rows = stats.members.map(c => [
-      c.company, c.firstName, c.lastName, c.title, c.email, c.phone, c.sector, c.status, c.createdAt || ''
-    ]);
-    downloadCSV(`base_membres_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
-  };
+    const rdvCount = relevantCampaigns.reduce((acc, camp) => {
+      const outcomes = camp.outcomes || {};
+      return acc + Object.values(outcomes).filter((o: any) => o.status === 'Meeting').length;
+    }, 0);
 
-  const exportRegistered = () => {
-    const headers = ['Campagne', 'Société', 'Prénom', 'Nom', 'Email', 'Nombre Participants', 'Date Qualification'];
-    const rows: any[][] = [];
-    campaigns.forEach(camp => {
-      if (camp.outcomes) {
-        Object.entries(camp.outcomes).forEach(([contactId, outcome]: [string, any]) => {
-          if (outcome.status === 'Registered') {
-            const contact = contacts.find(c => c.id === String(contactId));
-            if (contact) {
-              rows.push([
-                camp.name, contact.company, contact.firstName, contact.lastName,
-                contact.email, outcome.attendees || 1, outcome.updatedAt || ''
-              ]);
+    return { impactedCount, sentCount, positiveCount, rdvCount };
+  }, [campaigns, emails, selectedCampId]);
+
+  const exportImpact = () => {
+    const relevantCampaigns = selectedCampId === 'all'
+      ? campaigns
+      : campaigns.filter(c => c.id === selectedCampId);
+
+    const rows: any[] = [];
+    relevantCampaigns.forEach(camp => {
+      (camp.targetContactIds || []).forEach(contactId => {
+        const contact = contacts.find(c => String(c.id) === String(contactId));
+        if (contact) {
+          const outcome = camp.outcomes?.[contactId];
+          const emailRecord = emails.find(e => {
+            if (String(e.lead_id) !== String(contactId)) return false;
+            if (String(e.campaign_id) === String(camp.id)) return true;
+            if (!e.campaign_id && camp.subject && e.subject && camp.createdAt) {
+              const baseSubject = camp.subject.replace(/\{\{.*?\}\}/g, '').trim();
+              const isMatch = baseSubject.length > 5 && e.subject.includes(baseSubject);
+              const isAfter = new Date(e.created_at || e.createdAt) >= new Date(camp.createdAt);
+              return isMatch && isAfter;
             }
-          }
-        });
-      }
-    });
-    downloadCSV(`inscriptions_evenements_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
-  };
+            return false;
+          });
 
-  const exportMeetings = () => {
-    const headers = ['Campagne', 'Société', 'Prénom', 'Nom', 'Email', 'Téléphone', 'Date Demande'];
-    const rows: any[][] = [];
-    campaigns.forEach(camp => {
-      if (camp.outcomes) {
-        Object.entries(camp.outcomes).forEach(([contactId, outcome]: [string, any]) => {
-          if (outcome.status === 'Meeting') {
-            const contact = contacts.find(c => c.id === String(contactId));
-            if (contact) {
-              rows.push([
-                camp.name, contact.company, contact.firstName, contact.lastName,
-                contact.email, contact.phone, outcome.updatedAt || ''
-              ]);
-            }
-          }
-        });
-      }
-    });
-    downloadCSV(`rendez_vous_qualifies_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
-  };
-
-  const exportPositive = () => {
-    const headers = ['Campagne', 'Société', 'Prénom', 'Nom', 'Email', 'Téléphone', 'Date Qualification'];
-    const rows: any[][] = [];
-    campaigns.forEach(camp => {
-      if (camp.outcomes) {
-        Object.entries(camp.outcomes).forEach(([contactId, outcome]: [string, any]) => {
-          if (outcome.status === 'Positive') {
-            const contact = contacts.find(c => c.id === String(contactId));
-            if (contact) {
-              rows.push([
-                camp.name, contact.company, contact.firstName, contact.lastName,
-                contact.email, contact.phone, outcome.updatedAt || ''
-              ]);
-            }
-          }
-        });
-      }
-    });
-    downloadCSV(`interets_positifs_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
-  };
-
-  const exportNegative = () => {
-    const headers = ['Campagne', 'Société', 'Prénom', 'Nom', 'Email', 'Téléphone', 'Date Qualification'];
-    const rows: any[][] = [];
-    campaigns.forEach(camp => {
-      if (camp.outcomes) {
-        Object.entries(camp.outcomes).forEach(([contactId, outcome]: [string, any]) => {
-          if (outcome.status === 'Negative') {
-            const contact = contacts.find(c => c.id === String(contactId));
-            if (contact) {
-              rows.push([
-                camp.name, contact.company, contact.firstName, contact.lastName,
-                contact.email, contact.phone, outcome.updatedAt || ''
-              ]);
-            }
-          }
-        });
-      }
-    });
-    downloadCSV(`refus_negatifs_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
-  };
-
-  const exportNSP = () => {
-    const headers = ['Campagne', 'Société', 'Prénom', 'Nom', 'Email', 'Téléphone', 'Date Qualification'];
-    const rows: any[][] = [];
-    campaigns.forEach(camp => {
-      if (camp.outcomes) {
-        Object.entries(camp.outcomes).forEach(([contactId, outcome]: [string, any]) => {
-          if (outcome.status === 'None') {
-            const contact = contacts.find(c => c.id === String(contactId));
-            if (contact) {
-              rows.push([
-                camp.name, contact.company, contact.firstName, contact.lastName,
-                contact.email, contact.phone, outcome.updatedAt || ''
-              ]);
-            }
-          }
-        });
-      }
-    });
-    downloadCSV(`contacts_nsp_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
-  };
-
-  const exportUnread = () => {
-    const headers = ['Sujet Campagne', 'Société', 'Prénom', 'Nom', 'Email', 'Date Envoi', 'Statut'];
-    const rows: any[][] = [];
-
-    stats.unreadEmails.forEach(e => {
-      const contact = contacts.find(c => String(c.id) === String(e.lead_id));
-      if (contact) {
-        rows.push([
-          e.subject || 'Campagne Sans Objet',
-          contact.company,
-          contact.firstName,
-          contact.lastName,
-          contact.email,
-          e.created_at || '',
-          e.status
-        ]);
-      }
+          rows.push({
+            'Campagne': camp.name,
+            'Contact': `${contact.firstName} ${contact.lastName}`,
+            'Email': contact.email,
+            'Société': contact.company,
+            'Type Cible': contact.category || 'Prospect',
+            'Email Envoyé': emailRecord ? 'OUI' : 'NON',
+            'Date Envoi': emailRecord ? new Date(emailRecord.created_at || emailRecord.createdAt).toLocaleString() : '-',
+            'Posture / Status': outcome?.status || 'Non Qualifié',
+            'Détails': outcome?.attendees ? `${outcome.attendees} personnes` : '-'
+          });
+        }
+      });
     });
 
-    downloadCSV(`relances_non_lus_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
-  };
+    const csv = [
+      Object.keys(rows[0] || {}).join(','),
+      ...rows.map(row => Object.values(row).map(v => `"${v}"`).join(','))
+    ].join('\n');
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center h-[70vh] space-y-4">
-      <RefreshCw className="animate-spin text-indigo-600" size={48} />
-      <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500 italic animate-pulse">Audit des tables Cloud...</p>
-    </div>
-  );
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `impact_report_${selectedCampId}_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
 
   return (
-    <div className="p-4 lg:p-10 space-y-8 lg:space-y-12 bg-[#F8FAFC] min-h-screen animate-in fade-in duration-500 pb-32">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end border-b border-slate-200 pb-8 lg:pb-10 gap-6">
+    <div className="space-y-12 p-2 pb-20">
+      <div className="flex flex-col md:flex-row justify-between items-center bg-white p-10 rounded-[48px] border border-slate-200 shadow-sm gap-8 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl -z-10"></div>
         <div>
-          <h2 className="text-2xl lg:text-4xl font-black uppercase italic tracking-tighter text-slate-900">Reporting <span className="text-indigo-600">& Exports</span></h2>
-          <div className="flex items-center gap-2.5 mt-2.5 bg-white px-3 py-1 lg:px-4 lg:py-1.5 rounded-full w-fit border border-slate-200 shadow-sm">
-            <Clock size={12} className="text-slate-400" />
-            <p className="text-[8px] lg:text-[11px] font-bold text-slate-500 uppercase tracking-widest leading-none">Sync : <span className="text-slate-900">{lastSync}</span></p>
-          </div>
+          <h3 className="text-3xl font-black text-slate-900 uppercase tracking-tighter italic leading-none text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">Reporting & Impact</h3>
+          <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] mt-3 italic flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            Dernière synchronisation : {lastSync}
+          </p>
         </div>
-        <button onClick={loadData} className="w-full md:w-auto px-6 py-3 bg-white border border-slate-200 rounded-xl lg:rounded-2xl text-slate-500 hover:text-indigo-600 transition-all shadow-sm flex items-center justify-center gap-3 font-bold text-[9px] lg:text-[11px] uppercase tracking-widest active:scale-95">
-          <RefreshCw size={16} /> Actualiser
-        </button>
+        <div className="flex gap-4">
+          <button onClick={loadData} className="p-5 bg-slate-50 text-slate-400 border border-slate-100 rounded-3xl hover:text-indigo-600 transition active:rotate-180">
+            <RefreshCw size={24} className={loading ? "animate-spin" : ""} />
+          </button>
+          <button
+            onClick={exportImpact}
+            className="px-10 py-5 bg-slate-900 text-white font-black rounded-[32px] text-[11px] uppercase tracking-[0.2em] shadow-xl flex items-center gap-4 transition hover:bg-indigo-600 active:scale-95 italic border-b-4 border-slate-700"
+          >
+            <Download size={22} strokeWidth={3} /> Exporter l'Impact
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-10">
-
-        {/* PROSPECTS */}
-        <div className="bg-white p-6 lg:p-10 rounded-[40px] lg:rounded-[56px] border border-slate-200 shadow-sm hover:shadow-xl transition-all group animate-in slide-in-from-bottom-2 duration-300">
-          <div className="p-4 bg-indigo-50 text-indigo-600 rounded-[24px] w-fit mb-6 lg:mb-8 group-hover:bg-indigo-600 group-hover:text-white transition-all shadow-sm">
-            <Database size={24} />
-          </div>
-          <h3 className="text-xl lg:text-2xl font-black italic uppercase tracking-tighter mb-2 text-slate-900">Audit Leads</h3>
-          <p className="text-[9px] lg:text-[11px] font-bold text-slate-400 uppercase mb-6 lg:mb-8">Extraction brute base leads.</p>
-          <div className="mt-auto flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-2xl lg:text-4xl font-black italic text-slate-900">{stats.prospects.length}</span>
-              <span className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-widest">Leads</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        {[
+          { label: 'Cibles Impactées', val: stats.impactedCount, icon: <Users size={28} />, color: 'indigo' },
+          { label: 'Emails Envoyés', val: stats.sentCount, icon: <Mail size={28} />, color: 'emerald' },
+          { label: 'Retours Positifs', val: stats.positiveCount, icon: <Zap size={28} />, color: 'amber' },
+          { label: 'Rendez-vous', val: stats.rdvCount, icon: <Calendar size={28} />, color: 'violet' }
+        ].map((s, idx) => (
+          <div key={idx} className="bg-white p-10 rounded-[48px] border border-slate-200 shadow-sm group hover:-translate-y-2 transition-all duration-500 hover:shadow-2xl">
+            <div className={`w-14 h-14 rounded-2xl bg-${s.color}-50 text-${s.color}-600 flex items-center justify-center mb-8 shadow-sm group-hover:rotate-12 transition-transform`}>
+              {s.icon}
             </div>
-            <button onClick={exportProspects} className="px-5 py-3 bg-slate-900 text-white rounded-xl lg:rounded-[24px] text-[8px] lg:text-[10px] font-black uppercase flex items-center gap-2 hover:bg-indigo-600 shadow-lg active:scale-95">
-              <Download size={12} /> CSV
-            </button>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{s.label}</p>
+            <h4 className="text-5xl font-black italic tracking-tighter text-slate-900 mt-2">{s.val}</h4>
           </div>
-        </div>
-
-        {/* MEMBRES */}
-        <div className="bg-white p-6 lg:p-10 rounded-[40px] lg:rounded-[56px] border border-slate-200 shadow-sm hover:shadow-xl transition-all group animate-in slide-in-from-bottom-2 duration-400">
-          <div className="p-4 bg-emerald-50 text-emerald-600 rounded-[24px] w-fit mb-6 lg:mb-8 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-sm">
-            <Users size={24} />
-          </div>
-          <h3 className="text-xl lg:text-2xl font-black italic uppercase tracking-tighter mb-2 text-slate-900">Base Membres</h3>
-          <p className="text-[9px] lg:text-[11px] font-bold text-slate-400 uppercase mb-6 lg:mb-8">Liste certifiée membres actifs.</p>
-          <div className="mt-auto flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-2xl lg:text-4xl font-black italic text-emerald-600">{stats.members.length}</span>
-              <span className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-widest">Validés</span>
-            </div>
-            <button onClick={exportMembers} className="px-5 py-3 bg-emerald-600 text-white rounded-xl lg:rounded-[24px] text-[8px] lg:text-[10px] font-black uppercase flex items-center gap-2 hover:bg-emerald-700 shadow-lg active:scale-95">
-              <Download size={12} /> CSV
-            </button>
-          </div>
-        </div>
-
-        {/* RDV */}
-        <div className="bg-white p-6 lg:p-10 rounded-[40px] lg:rounded-[56px] border border-slate-200 shadow-sm hover:shadow-xl transition-all group animate-in slide-in-from-bottom-2 duration-450">
-          <div className="p-4 bg-violet-50 text-violet-600 rounded-[24px] w-fit mb-6 lg:mb-8 group-hover:bg-violet-600 group-hover:text-white transition-all shadow-sm">
-            <Calendar size={24} />
-          </div>
-          <h3 className="text-xl lg:text-2xl font-black italic uppercase tracking-tighter mb-2 text-slate-900">Rendez-vous</h3>
-          <p className="text-[9px] lg:text-[11px] font-bold text-slate-400 uppercase mb-6 lg:mb-8">Export des RDV qualifiés.</p>
-          <div className="mt-auto flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-2xl lg:text-4xl font-black italic text-violet-600">{stats.meetingCount}</span>
-              <span className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-widest">Qualifiés</span>
-            </div>
-            <button onClick={exportMeetings} className="px-5 py-3 bg-violet-600 text-white rounded-xl lg:rounded-[24px] text-[8px] lg:text-[10px] font-black uppercase flex items-center gap-2 hover:bg-violet-700 shadow-lg active:scale-95">
-              <Download size={12} /> CSV
-            </button>
-          </div>
-        </div>
-
-        {/* REFUS (NON) - AJOUTÉ */}
-        <div className="bg-white p-6 lg:p-10 rounded-[40px] lg:rounded-[56px] border border-slate-200 shadow-sm hover:shadow-xl transition-all group animate-in slide-in-from-bottom-2 duration-480">
-          <div className="p-4 bg-rose-50 text-rose-600 rounded-[24px] w-fit mb-6 lg:mb-8 group-hover:bg-rose-600 group-hover:text-white transition-all shadow-sm">
-            <UserX size={24} />
-          </div>
-          <h3 className="text-xl lg:text-2xl font-black italic uppercase tracking-tighter mb-2 text-slate-900">Refus (NON)</h3>
-          <p className="text-[9px] lg:text-[11px] font-bold text-slate-400 uppercase mb-6 lg:mb-8">Audit des réponses négatives.</p>
-          <div className="mt-auto flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-2xl lg:text-4xl font-black italic text-rose-600">{stats.negativeCount}</span>
-              <span className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-widest">Désistés</span>
-            </div>
-            <button onClick={exportNegative} className="px-5 py-3 bg-rose-600 text-white rounded-xl lg:rounded-[24px] text-[8px] lg:text-[10px] font-black uppercase flex items-center gap-2 hover:bg-rose-700 shadow-lg active:scale-95">
-              <Download size={12} /> CSV
-            </button>
-          </div>
-        </div>
-
-        {/* SALON */}
-        <div className="bg-white p-6 lg:p-10 rounded-[40px] lg:rounded-[56px] border border-slate-200 shadow-sm hover:shadow-xl transition-all group animate-in slide-in-from-bottom-2 duration-500">
-          <div className="p-4 bg-amber-50 text-amber-500 rounded-[24px] w-fit mb-6 lg:mb-8 group-hover:bg-amber-500 group-hover:text-white transition-all shadow-sm">
-            <Ticket size={24} />
-          </div>
-          <h3 className="text-xl lg:text-2xl font-black italic uppercase tracking-tighter mb-2 text-slate-900">Salons Pro</h3>
-          <p className="text-[9px] lg:text-[11px] font-bold text-slate-400 uppercase mb-6 lg:mb-8">Inscriptions événements salon.</p>
-          <div className="mt-auto flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-2xl lg:text-4xl font-black italic text-amber-500">{stats.registeredCount}</span>
-              <span className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-widest">Inscrits</span>
-            </div>
-            <button onClick={exportRegistered} className="px-5 py-3 bg-amber-500 text-white rounded-xl lg:rounded-[24px] text-[8px] lg:text-[10px] font-black uppercase flex items-center gap-2 hover:bg-amber-600 shadow-lg active:scale-95">
-              <Download size={12} /> CSV
-            </button>
-          </div>
-        </div>
-
-        {/* NSP */}
-        <div className="bg-white p-6 lg:p-10 rounded-[40px] lg:rounded-[56px] border border-slate-200 shadow-sm hover:shadow-xl transition-all group animate-in slide-in-from-bottom-2 duration-600">
-          <div className="p-4 bg-slate-100 text-slate-400 rounded-[24px] w-fit mb-6 lg:mb-8 group-hover:bg-slate-500 group-hover:text-white transition-all shadow-sm">
-            <HelpCircle size={24} />
-          </div>
-          <h3 className="text-xl lg:text-2xl font-black italic uppercase tracking-tighter mb-2 text-slate-900">Leads NSP</h3>
-          <p className="text-[9px] lg:text-[11px] font-bold text-slate-400 uppercase mb-6 lg:mb-8">Contacts à relancer (Incertains).</p>
-          <div className="mt-auto flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-2xl lg:text-4xl font-black italic text-slate-400">{stats.nspCount}</span>
-              <span className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-widest">Relances</span>
-            </div>
-            <button onClick={exportNSP} className="px-5 py-3 bg-slate-200 text-slate-700 rounded-xl lg:rounded-[24px] text-[8px] lg:text-[10px] font-black uppercase flex items-center gap-2 hover:bg-slate-300 shadow-lg active:scale-95">
-              <Download size={12} /> CSV
-            </button>
-          </div>
-        </div>
-
-        {/* NON LUS - NEW */}
-        <div className="bg-white p-6 lg:p-10 rounded-[40px] lg:rounded-[56px] border border-slate-200 shadow-sm hover:shadow-xl transition-all group animate-in slide-in-from-bottom-2 duration-700">
-          <div className="p-4 bg-cyan-50 text-cyan-600 rounded-[24px] w-fit mb-6 lg:mb-8 group-hover:bg-cyan-600 group-hover:text-white transition-all shadow-sm">
-            <Mail size={24} />
-          </div>
-          <h3 className="text-xl lg:text-2xl font-black italic uppercase tracking-tighter mb-2 text-slate-900">Relances (Non Lus)</h3>
-          <p className="text-[9px] lg:text-[11px] font-bold text-slate-400 uppercase mb-6 lg:mb-8">Emails envoyés mais pas encore ouverts.</p>
-          <div className="mt-auto flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-2xl lg:text-4xl font-black italic text-cyan-600">{stats.unreadEmails.length}</span>
-              <span className="text-[8px] font-black uppercase text-slate-400 mt-1 tracking-widest">A Relancer</span>
-            </div>
-            <button onClick={exportUnread} className="px-5 py-3 bg-cyan-600 text-white rounded-xl lg:rounded-[24px] text-[8px] lg:text-[10px] font-black uppercase flex items-center gap-2 hover:bg-cyan-700 shadow-lg active:scale-95">
-              <Download size={12} /> CSV
-            </button>
-          </div>
-        </div>
-
+        ))}
       </div>
 
-      <div className="bg-slate-900 p-8 lg:p-12 rounded-[40px] lg:rounded-[64px] text-white flex flex-col md:flex-row items-center justify-between gap-8 shadow-2xl animate-in zoom-in duration-500">
-        <div className="space-y-3 text-center md:text-left">
-          <h4 className="text-xl lg:text-3xl font-black uppercase italic tracking-tighter leading-none">Intelligence Hub Export</h4>
-          <p className="text-[8px] lg:text-[11px] font-bold uppercase tracking-[0.1em] opacity-60 italic">Données consolidées pour CRM / Excel externe.</p>
+      <div className="bg-white p-10 lg:p-14 rounded-[60px] border border-slate-200 shadow-sm space-y-12">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 border-b border-slate-50 pb-12">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 rounded-[24px] bg-slate-900 text-white flex items-center justify-center shadow-xl rotate-3">
+              <Database size={32} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h4 className="text-2xl font-black italic uppercase tracking-tighter text-slate-900 leading-none">Détails des Contacts Impactés</h4>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3">Analyse granulaire par campagne</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-[32px] border border-slate-100 min-w-[320px]">
+              <Target size={18} className="text-slate-400 ml-4" />
+              <select
+                value={selectedCampId}
+                onChange={(e) => setSelectedCampId(e.target.value)}
+                className="bg-transparent border-none text-[11px] font-black uppercase tracking-widest text-slate-600 outline-none w-full p-4 cursor-pointer italic"
+              >
+                <option value="all">Toutes les Campagnes</option>
+                {campaigns.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} ({(c.targetContactIds || []).length})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedCampId !== 'all' && (
+              <button
+                onClick={handleCleanup}
+                disabled={loading}
+                className="px-6 py-4 bg-rose-50 text-rose-600 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 hover:bg-rose-100 transition-all italic border border-rose-100 disabled:opacity-50"
+                title="Supprimer les logs d'emails de cette campagne pour corriger les erreurs d'affichage"
+              >
+                <Eraser size={16} /> Nettoyer l'Historique
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-6 lg:gap-10">
-          <div className="flex flex-col items-end">
-            <span className="text-4xl lg:text-6xl font-black italic tracking-tighter leading-none">{contacts.length}</span>
-            <span className="text-[8px] lg:text-[10px] font-black uppercase tracking-[0.2em] opacity-50 mt-1 lg:mt-2">Total Base</span>
+
+        <div className="mx-8 lg:mx-12 p-6 bg-amber-50 rounded-[32px] border border-amber-100 flex items-start gap-5 animate-in slide-in-from-top-4 duration-500">
+          <div className="p-3 bg-amber-500 text-white rounded-xl shadow-md rotate-3">
+            <Info size={18} />
           </div>
-          <ArrowRight size={30} className="opacity-20 hidden md:block" />
-          <div className="w-16 h-16 lg:w-20 h-20 bg-white/5 rounded-[24px] lg:rounded-[32px] flex items-center justify-center border border-white/10 shadow-inner">
-            <FileSpreadsheet size={32} className="text-indigo-400" />
+          <div>
+            <p className="text-[11px] font-black uppercase text-amber-700 tracking-tight italic leading-tight">Note sur la précision du tracking</p>
+            <p className="text-[10px] font-bold text-amber-600/80 mt-1 leading-relaxed">
+              Le système a été mis à jour le 05/01 pour une précision accrue. Les envois effectués avant cette date peuvent afficher des doublons ou des erreurs tant que l'historique n'est pas nettoyé via SQL.
+            </p>
           </div>
+        </div>
+
+        <div className="overflow-x-auto rounded-[32px] border border-slate-100 bg-slate-50/30">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-100 bg-white/50">
+                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Contact</th>
+                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic">Société</th>
+                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic text-center">Date d'envoi</th>
+                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic text-center">Email</th>
+                <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-slate-400 italic text-center">Posture / Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {campaigns
+                .filter(c => selectedCampId === 'all' || c.id === selectedCampId)
+                .flatMap(camp => (camp.targetContactIds || []).map(cid => ({ camp, cid })))
+                .map(({ camp, cid }, idx) => {
+                  const contact = contacts.find(c => String(c.id) === String(cid));
+                  if (!contact) return null;
+                  const outcome = camp.outcomes?.[cid];
+
+                  const emailRecord = emails.find(e => {
+                    if (String(e.lead_id) !== String(cid)) return false;
+                    if (String(e.campaign_id) === String(camp.id)) return true;
+                    if (!e.campaign_id && camp.subject && e.subject && camp.createdAt) {
+                      const baseSubject = camp.subject.replace(/\{\{.*?\}\}/g, '').trim();
+                      const isMatch = baseSubject.length > 5 && e.subject.includes(baseSubject);
+                      const isAfter = new Date(e.created_at || e.createdAt) >= new Date(camp.createdAt);
+                      return isMatch && isAfter;
+                    }
+                    return false;
+                  });
+
+                  const emailSent = !!emailRecord;
+
+                  return (
+                    <tr key={`${camp.id}-${cid}-${idx}`} className="hover:bg-white transition-colors group">
+                      <td className="px-8 py-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-black italic text-xs shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                            {contact.firstName[0]}{contact.lastName[0]}
+                          </div>
+                          <div>
+                            <p className="text-[13px] font-black italic uppercase tracking-tighter text-slate-900 leading-none">{contact.firstName} {contact.lastName}</p>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1.5 italic group-hover:text-indigo-500 transition-colors">{contact.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">{contact.company || 'N/A'}</p>
+                      </td>
+                      <td className="px-8 py-6 text-center">
+                        <div className="flex flex-col items-center">
+                          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-tighter leading-none italic">
+                            {emailRecord ? new Date(emailRecord.created_at || emailRecord.createdAt).toLocaleDateString() : '-'}
+                          </p>
+                          <p className="text-[8px] font-medium text-slate-400 uppercase tracking-widest mt-1">
+                            {emailRecord ? new Date(emailRecord.created_at || emailRecord.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </p>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex justify-center">
+                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic border ${emailRecord?.opened_at ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                            emailSent ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                              'bg-rose-50 text-rose-600 border-rose-100'
+                            }`}>
+                            {emailRecord?.opened_at ? 'OUVERT' : emailSent ? 'ENVOYÉ' : 'À ENVOYER'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-8 py-6">
+                        <div className="flex justify-center">
+                          <span className={`px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest italic border ${outcome?.status === 'Meeting' ? 'bg-violet-50 text-violet-600 border-violet-100' :
+                            outcome?.status === 'Positive' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                              outcome?.status === 'Registered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                outcome?.status === 'Negative' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                  'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                            {outcome?.status || 'Non Qualifié'}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
