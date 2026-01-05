@@ -147,6 +147,131 @@ const ReportingManager: React.FC = () => {
     return { impactedCount, sentCount, positiveCount, rdvCount };
   }, [campaigns, emails, selectedCampId]);
 
+  const downloadCSV = (rows: any[], filename: string) => {
+    if (rows.length === 0) {
+      alert("Aucune donnée à exporter.");
+      return;
+    }
+    const csv = [
+      Object.keys(rows[0]).join(','),
+      ...rows.map(row => Object.values(row).map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+  };
+
+  const exportAllLeads = () => {
+    const list = contacts.filter(c => c.category === 'prospect');
+    const rows = list.map(c => ({
+      'Prénom': c.firstName,
+      'Nom': c.lastName,
+      'Email': c.email,
+      'Société': c.company,
+      'Titre': c.title || '',
+      'Secteur': c.sector || 'N/A',
+      'Statut': c.status,
+      'Score IA': c.score || '',
+      'Notes': c.notes || ''
+    }));
+    downloadCSV(rows, `export_leads_complet_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const exportAllMembres = () => {
+    const list = contacts.filter(c => c.category === 'member');
+    const rows = list.map(c => ({
+      'Prénom': c.firstName,
+      'Nom': c.lastName,
+      'Email': c.email,
+      'Société': c.company,
+      'Titre': c.title || '',
+      'Secteur': c.sector || 'N/A',
+      'Statut': c.status,
+      'Notes': c.notes || ''
+    }));
+    downloadCSV(rows, `base_membres_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const exportAllEmailsSent = () => {
+    const rows = emails.map(e => {
+      const contact = contacts.find(c => String(c.id) === String(e.lead_id));
+      const camp = campaigns.find(c => String(c.id) === String(e.campaign_id));
+      return {
+        'Date Envoi': new Date(e.created_at || e.createdAt).toLocaleString(),
+        'Contact': contact ? `${contact.firstName} ${contact.lastName}` : 'Inconnu',
+        'Email Destination': e.email || contact?.email || '',
+        'Campagne': camp?.name || 'Manuelle / Autre',
+        'Objet': e.subject || '',
+        'Statut': e.opened_at ? 'OUVERT' : 'ENVOYÉ',
+        'Date Ouverture': e.opened_at ? new Date(e.opened_at).toLocaleString() : '-'
+      };
+    });
+    downloadCSV(rows, `historique_emails_envoyes_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const exportAllContacts = () => {
+    const rows = contacts.map(c => ({
+      'Prénom': c.firstName,
+      'Nom': c.lastName,
+      'Email': c.email,
+      'Société': c.company,
+      'Titre': c.title || '',
+      'Secteur': c.sector || 'N/A',
+      'Catégorie': c.category === 'member' ? 'Membre' : 'Lead',
+      'Statut': c.status,
+      'Score IA': c.score || '',
+      'Notes': c.notes || ''
+    }));
+    downloadCSV(rows, `base_de_donnees_complete_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const exportByOutcome = (status: string, label: string) => {
+    const rows: any[] = [];
+    campaigns.forEach(camp => {
+      Object.entries(camp.outcomes || {}).forEach(([cid, o]: [string, any]) => {
+        if (o.status === status) {
+          const contact = contacts.find(c => String(c.id) === String(cid));
+          if (contact) {
+            rows.push({
+              'Campagne': camp.name,
+              'Contact': `${contact.firstName} ${contact.lastName}`,
+              'Email': contact.email,
+              'Société': contact.company,
+              'Résultat': status,
+              'Précisions': o.attendees ? `${o.attendees} pers.` : ''
+            });
+          }
+        }
+      });
+    });
+    downloadCSV(rows, `export_${label.toLowerCase().replace(/ /g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
+  const exportUnread = () => {
+    // Contacts who received an email but it's not opened
+    const unreadLeads = new Set(emails.filter(e => !e.opened_at).map(e => String(e.lead_id)));
+    const rows: any[] = [];
+    unreadLeads.forEach(lid => {
+      const contact = contacts.find(c => String(c.id) === lid);
+      if (contact) {
+        const lastEmail = emails.find(e => String(e.lead_id) === lid);
+        rows.push({
+          'Nom': contact.firstName,
+          'Prénom': contact.lastName,
+          'Email': contact.email,
+          'Société': contact.company,
+          'Dernière Campagne': lastEmail?.subject || 'N/A',
+          'Date Envoi': lastEmail ? new Date(lastEmail.created_at || lastEmail.createdAt).toLocaleDateString() : '?'
+        });
+      }
+    });
+    downloadCSV(rows, `relances_non_lues_${new Date().toISOString().split('T')[0]}.csv`);
+  };
+
   const exportImpact = () => {
     const relevantCampaigns = selectedCampId === 'all'
       ? campaigns
@@ -184,18 +309,7 @@ const ReportingManager: React.FC = () => {
         }
       });
     });
-
-    const csv = [
-      Object.keys(rows[0] || {}).join(','),
-      ...rows.map(row => Object.values(row).map(v => `"${v}"`).join(','))
-    ].join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `impact_report_${selectedCampId}_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    downloadCSV(rows, `impact_report_${selectedCampId}_${new Date().toISOString().split('T')[0]}.csv`);
   };
 
   return (
@@ -224,19 +338,66 @@ const ReportingManager: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         {[
-          { label: 'Cibles Impactées', val: stats.impactedCount, icon: <Users size={28} />, color: 'indigo' },
-          { label: 'Emails Envoyés', val: stats.sentCount, icon: <Mail size={28} />, color: 'emerald' },
-          { label: 'Retours Positifs', val: stats.positiveCount, icon: <Zap size={28} />, color: 'amber' },
-          { label: 'Rendez-vous', val: stats.rdvCount, icon: <Calendar size={28} />, color: 'violet' }
+          { label: 'Leads Potentiels', val: stats.impactedCount, icon: <Users size={28} />, color: 'indigo', action: exportAllLeads, btnLabel: 'Export Leads' },
+          { label: 'Emails Envoyés', val: stats.sentCount, icon: <Mail size={28} />, color: 'emerald', action: exportAllEmailsSent, btnLabel: 'Historique Emails' },
+          { label: 'Retours Positifs', val: stats.positiveCount, icon: <Zap size={28} />, color: 'amber', action: () => exportByOutcome('Positive', 'Interets Positifs'), btnLabel: 'Listes Intérêts' },
+          { label: 'Rendez-vous', val: stats.rdvCount, icon: <Calendar size={28} />, color: 'violet', action: () => exportByOutcome('Meeting', 'Rendez-vous'), btnLabel: 'Liste RDV' }
         ].map((s, idx) => (
-          <div key={idx} className="bg-white p-10 rounded-[48px] border border-slate-200 shadow-sm group hover:-translate-y-2 transition-all duration-500 hover:shadow-2xl">
-            <div className={`w-14 h-14 rounded-2xl bg-${s.color}-50 text-${s.color}-600 flex items-center justify-center mb-8 shadow-sm group-hover:rotate-12 transition-transform`}>
-              {s.icon}
+          <div key={idx} className="bg-white p-10 rounded-[48px] border border-slate-200 shadow-sm group hover:-translate-y-2 transition-all duration-500 hover:shadow-2xl flex flex-col justify-between">
+            <div>
+              <div className={`w-14 h-14 rounded-2xl bg-${s.color}-50 text-${s.color}-600 flex items-center justify-center mb-8 shadow-sm group-hover:rotate-12 transition-transform`}>
+                {s.icon}
+              </div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{s.label}</p>
+              <h4 className="text-5xl font-black italic tracking-tighter text-slate-900 mt-2">{s.val}</h4>
             </div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">{s.label}</p>
-            <h4 className="text-5xl font-black italic tracking-tighter text-slate-900 mt-2">{s.val}</h4>
+            <button onClick={s.action} className="mt-8 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800 transition-colors">
+              <Download size={14} strokeWidth={3} /> {s.btnLabel}
+            </button>
           </div>
         ))}
+      </div>
+
+      <div className="bg-white p-10 lg:p-14 rounded-[60px] border border-slate-200 shadow-sm space-y-12">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 border-b border-slate-50 pb-12">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 rounded-[24px] bg-slate-900 text-white flex items-center justify-center shadow-xl rotate-3">
+              <ArrowRight size={32} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h4 className="text-2xl font-black italic uppercase tracking-tighter text-slate-900 leading-none">Extraction de Listes Clients</h4>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-3">Téléchargez vos segments au format CSV</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[
+            { label: 'Audit Leads Complet', icon: <Users />, color: 'indigo', action: exportAllLeads },
+            { label: 'Audit Membres', icon: <UserCheck />, color: 'emerald', action: exportAllMembres },
+            { label: 'Historique Emails', icon: <Mail />, color: 'sky', action: exportAllEmailsSent },
+            { label: 'Base Complète (Backup)', icon: <Database />, color: 'slate', action: exportAllContacts },
+            { label: 'Inscriptions Event', icon: <Ticket />, color: 'amber', action: () => exportByOutcome('Registered', 'Inscriptions') },
+            { label: 'Rendez-vous Qualifiés', icon: <Calendar />, color: 'violet', action: () => exportByOutcome('Meeting', 'Rendez-vous') },
+            { label: 'Intérêts Positifs', icon: <Zap />, color: 'fuchsia', action: () => exportByOutcome('Positive', 'Interets') },
+            { label: 'Refus / Négatifs', icon: <UserX />, color: 'rose', action: () => exportByOutcome('Negative', 'Refus') },
+            { label: 'Relances Non Lues', icon: <Clock />, color: 'sky', action: exportUnread }
+          ].map((item, idx) => (
+            <button
+              key={idx}
+              onClick={item.action}
+              className="flex items-center justify-between p-8 bg-slate-50 rounded-[32px] border border-slate-100 hover:bg-white hover:shadow-xl hover:-translate-y-1 transition-all group"
+            >
+              <div className="flex items-center gap-5">
+                <div className={`p-3 rounded-xl bg-${item.color}-50 text-${item.color}-600 group-hover:bg-${item.color}-600 group-hover:text-white transition-all`}>
+                  {React.cloneElement(item.icon as React.ReactElement, { size: 20 })}
+                </div>
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-600 group-hover:text-slate-900">{item.label}</span>
+              </div>
+              <Download size={16} className="text-slate-300 group-hover:text-indigo-600" />
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="bg-white p-10 lg:p-14 rounded-[60px] border border-slate-200 shadow-sm space-y-12">
