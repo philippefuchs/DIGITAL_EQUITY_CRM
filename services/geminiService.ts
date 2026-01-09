@@ -5,7 +5,7 @@ import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
  * Ultimate diagnostic version. No truncation. Full error visibility.
  */
 
-const DEFAULT_MODELS = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp'];
+const DEFAULT_MODELS = ['gemini-1.5-flash-latest', 'gemini-1.5-pro-latest', 'gemini-exp-1206'];
 
 export const getGeminiClient = () => {
   const k = import.meta.env.VITE_GEMINI_API_KEY || "";
@@ -147,8 +147,8 @@ export const enrichContactFromText = async (t: string) => {
   }
   `;
 
-  // Use gemini-2.0-flash-exp for superior agentic capabilities (multi-step reasoning)
-  const searchModelName = 'gemini-2.0-flash-exp';
+  // Use gemini-exp-1206 for superior agentic capabilities (multi-step reasoning)
+  const searchModelName = 'gemini-exp-1206';
 
   try {
     const { genAI, masked } = getGeminiClient();
@@ -247,7 +247,7 @@ export const extractContactFromImage = async (base64Image: string) => {
       website: { type: SchemaType.STRING },
       linkedinUrl: { type: SchemaType.STRING },
     }
-  }, true, ['gemini-1.5-flash', 'gemini-2.0-flash-exp', 'gemini-1.5-pro']);
+  }, true, ['gemini-1.5-flash-latest', 'gemini-exp-1206', 'gemini-1.5-pro-latest']);
 };
 
 export const generateLinkedInPostOptions = async (t: string, s: any[], c: string = "", l: string = 'fr') => {
