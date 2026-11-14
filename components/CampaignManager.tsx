@@ -9,6 +9,7 @@ import {
   Eraser, Sparkles, Zap, ChevronLeft, Filter, CheckSquare, Square, User, ArrowUpRight, Save
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { fetchAllRows } from '../services/pagination';
 import { Campaign, Contact, ProspectStatus, CampaignOutcome, OutcomeDetail, EmailTemplate } from '../types';
 import { loadTemplates as fetchTemplates, saveTemplate, writeLocalTemplates, readLocalTemplates } from '../services/templateService';
 import { useCategories } from './CategoryProvider';
@@ -80,7 +81,7 @@ const CampaignManager: React.FC = () => {
       const { data: c, error: cErr } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false });
       if (cErr) throw cErr;
 
-      const { data: p, error: pErr } = await supabase.from('contacts').select('*');
+      const { data: p, error: pErr } = await fetchAllRows('contacts', '*', { orderBy: 'created_at', ascending: false });
       if (pErr) throw pErr;
 
       const savedConfig = localStorage.getItem('leadgen_emailjs_config');

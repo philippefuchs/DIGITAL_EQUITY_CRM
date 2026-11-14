@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Contact } from '../types';
 import { Users, RefreshCw, Upload, Plus, Search, Wand2 } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { fetchAllRows } from '../services/pagination';
 import ContactList from './ContactList';
 import ContactFormModal from './ContactFormModal';
 import ImportCSVModal from './ImportCSVModal';
@@ -37,10 +38,7 @@ const ContactManager: React.FC<ContactManagerProps> = ({ category }) => {
     if (!supabase) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('contacts')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const { data, error } = await fetchAllRows('contacts', '*', { orderBy: 'created_at', ascending: false });
 
       if (error) throw error;
 

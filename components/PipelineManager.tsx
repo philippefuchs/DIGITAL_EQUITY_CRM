@@ -7,6 +7,7 @@ import {
     ArrowRight, Award, AlertCircle, TrendingDown, Maximize2, Minimize2
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { fetchAllRows } from '../services/pagination';
 import { Contact } from '../types';
 
 interface Deal {
@@ -64,9 +65,7 @@ const PipelineManager: React.FC = () => {
             }
 
             // Load contacts
-            const { data: contactsData, error: contactsError } = await supabase
-                .from('contacts')
-                .select('*');
+            const { data: contactsData, error: contactsError } = await fetchAllRows('contacts', '*', { orderBy: 'created_at', ascending: false });
 
             if (contactsError) throw contactsError;
 

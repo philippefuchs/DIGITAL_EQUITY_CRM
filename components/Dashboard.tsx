@@ -4,6 +4,7 @@ import { CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart,
 import { Users, RefreshCw, Ticket, Briefcase, Globe, Activity, TrendingUp, CheckCircle2, UserCircle, LayoutGrid, Clock, ShieldCheck, Calendar, Zap, Sparkles, HelpCircle, UserX } from 'lucide-react';
 import { Contact, Campaign, ProspectStatus, OutcomeDetail } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { fetchAllRows } from '../services/pagination';
 import { useCategories } from './CategoryProvider';
 
 const Dashboard: React.FC = () => {
@@ -30,7 +31,7 @@ const Dashboard: React.FC = () => {
     }, 8000);
 
     try {
-      const { data: contactsData, error: contactsErr } = await supabase.from('contacts').select('*');
+      const { data: contactsData, error: contactsErr } = await fetchAllRows('contacts', '*', { orderBy: 'created_at', ascending: false });
       const { data: campaignsData, error: campaignsErr } = await supabase.from('campaigns').select('*');
 
       if (contactsErr) console.warn("Supabase contacts error:", contactsErr);

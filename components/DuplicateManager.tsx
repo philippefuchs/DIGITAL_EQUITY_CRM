@@ -4,6 +4,7 @@ import {
     Users, Trash2, GitMerge, AlertCircle, Check, X, RefreshCw, Search, Filter
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { fetchAllRows } from '../services/pagination';
 import { Contact } from '../types';
 import { useCategories } from './CategoryProvider';
 
@@ -30,7 +31,7 @@ const DuplicateManager: React.FC = () => {
                 return;
             }
 
-            const { data, error } = await supabase.from('contacts').select('*');
+            const { data, error } = await fetchAllRows('contacts', '*', { orderBy: 'created_at', ascending: false });
             if (error) throw error;
 
             const contactList = (data || []).map((item: any) => ({

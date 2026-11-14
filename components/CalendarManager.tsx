@@ -5,6 +5,7 @@ import {
     Search, ChevronDown
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { fetchAllRows } from '../services/pagination';
 import { useCategories } from './CategoryProvider';
 
 interface Event {
@@ -92,7 +93,7 @@ const CalendarManager: React.FC = () => {
 
     const fetchContacts = async () => {
         try {
-            const { data } = await supabase.from('contacts').select('id, first_name, last_name, company');
+            const { data } = await fetchAllRows('contacts', 'id, first_name, last_name, company');
             setContacts(data || []);
         } catch (err) {
             console.error('Error fetching contacts:', err);

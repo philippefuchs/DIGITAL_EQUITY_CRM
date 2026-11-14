@@ -7,6 +7,7 @@ import {
   TrendingUp, Database, ArrowRight, ShieldCheck, Clock, FileText, Zap, Ticket, UserX, Target, Info, Eraser
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { fetchAllRows } from '../services/pagination';
 import { Contact, Campaign, OutcomeDetail } from '../types';
 
 const ReportingManager: React.FC = () => {
@@ -23,8 +24,8 @@ const ReportingManager: React.FC = () => {
     setLoading(true);
     try {
       const { data: c } = await supabase.from('campaigns').select('*').order('created_at', { ascending: false });
-      const { data: p } = await supabase.from('contacts').select('*');
-      const { data: e } = await supabase.from('emails').select('*').order('created_at', { ascending: false });
+      const { data: p } = await fetchAllRows('contacts', '*', { orderBy: 'created_at', ascending: false });
+      const { data: e } = await fetchAllRows('emails', '*', { orderBy: 'created_at', ascending: false });
 
       if (c) {
         setCampaigns(c.map((camp: any) => {
