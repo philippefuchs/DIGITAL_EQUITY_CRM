@@ -4,6 +4,7 @@ import emailjs from '@emailjs/browser';
 import { supabase } from '../services/supabase';
 import { useToast } from './ToastProvider';
 import { EmailTemplate } from '../types';
+import { loadTemplates as fetchTemplates } from '../services/templateService';
 
 interface EmailSenderProps {
     contactId: string;
@@ -60,29 +61,10 @@ const EmailSender: React.FC<EmailSenderProps> = ({ contactId, contactEmail, cont
         ];
 
         const loadTemplates = async () => {
-            let loadedTemplates: EmailTemplate[] = [];
+            // Sauvegarde en base les modèles de ce navigateur, puis la base fait foi.
+            let loadedTemplates: EmailTemplate[] = await fetchTemplates();
 
-            // 1. Try LocalStorage (synced by TemplateManager)
-            try {
-                const stored = localStorage.getItem('leadgen_email_templates');
-                if (stored) {
-                    loadedTemplates = JSON.parse(stored);
-                }
-            } catch (e) { console.error(e); }
-
-            // 2. Try Supabase (Source of Truth)
-            if (supabase) {
-                try {
-                    const { data, error } = await supabase.from('email_templates').select('*');
-                    if (!error && data && data.length > 0) {
-                        loadedTemplates = data;
-                        // Update local cache
-                        localStorage.setItem('leadgen_email_templates', JSON.stringify(data));
-                    }
-                } catch (err) { console.error("Error loading templates from DB", err); }
-            }
-
-            // 3. Fallback to Predefined if empty
+            // Fallback to Predefined if empty
             if (loadedTemplates.length === 0) {
                 loadedTemplates = PREDEFINED_LIBRARY;
             }

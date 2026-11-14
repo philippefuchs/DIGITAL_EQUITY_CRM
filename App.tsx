@@ -18,6 +18,7 @@ import CalendarManager from './components/CalendarManager';
 import CarouselManager from './components/CarouselManager';
 import { checkUpcomingReminders, Reminder } from './services/reminderService';
 import { supabase, isSupabaseConfigured, saveSupabaseConfig } from './services/supabase';
+import { syncLocalTemplatesToDb } from './services/templateService';
 import { ToastProvider, useToast } from './components/ToastProvider';
 
 // --- GLOBAL REALTIME LISTENER ---
@@ -176,6 +177,11 @@ const App: React.FC = () => {
   useEffect(() => {
     loadGlobalConfig();
   }, [loadGlobalConfig]);
+
+  // À chaque ouverture : les modèles d'emails enregistrés dans ce navigateur sont sauvegardés en base.
+  useEffect(() => {
+    void syncLocalTemplatesToDb();
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;

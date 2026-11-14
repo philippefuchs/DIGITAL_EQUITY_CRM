@@ -5,8 +5,11 @@ import {
     ChevronRight, Sparkles, BookOpen, Send, Target, Zap,
     Calendar, Users, Info, Copy, FileText, Globe
 } from 'lucide-react';
-import { supabase } from '../services/supabase';
 import { EmailTemplate } from '../types';
+import {
+    loadTemplates as fetchTemplates, saveTemplate, deleteTemplate,
+    writeLocalTemplates, syncLocalTemplatesToDb
+} from '../services/templateService';
 
 const PREDEFINED_TEMPLATES: Omit<EmailTemplate, 'id' | 'createdAt'>[] = [
     {
@@ -203,26 +206,19 @@ const TemplateManager: React.FC = () => {
     const loadTemplates = async () => {
         setLoading(true);
         try {
-            const stored = localStorage.getItem('leadgen_email_templates');
-            if (stored) {
-                setTemplates(JSON.parse(stored));
-            } else {
-                const initial = PREDEFINED_TEMPLATES.map((t, i) => ({
+            // Sauvegarde en base les modèles de ce navigateur, puis la base fait foi.
+            let list = await fetchTemplates();
+            if (list.length === 0) {
+                // Première utilisation : on installe la bibliothèque de départ et on la sauvegarde.
+                list = PREDEFINED_TEMPLATES.map((t, i) => ({
                     ...t,
                     id: `tpl-${Date.now()}-${i}`,
                     createdAt: new Date().toISOString()
                 }));
-                setTemplates(initial);
-                localStorage.setItem('leadgen_email_templates', JSON.stringify(initial));
+                writeLocalTemplates(list);
+                await syncLocalTemplatesToDb();
             }
-
-            if (supabase) {
-                const { data, error } = await supabase.from('email_templates').select('*');
-                if (!error && data && data.length > 0) {
-                    setTemplates(data);
-                    localStorage.setItem('leadgen_email_templates', JSON.stringify(data));
-                }
-            }
+            setTemplates(list);
         } catch (e) {
             console.error("Template Load Error:", e);
         } finally {
@@ -237,13 +233,14 @@ const TemplateManager: React.FC = () => {
     const handleSave = async (id: string) => {
         const updated = templates.map(t => t.id === id ? { ...t, ...editData } : t);
         setTemplates(updated);
-        localStorage.setItem('leadgen_email_templates', JSON.stringify(updated));
+        writeLocalTemplates(updated);
 
-        if (supabase) {
-            try {
-                const templateToSave = updated.find(t => t.id === id);
-                await supabase.from('email_templates').upsert(templateToSave);
-            } catch (e) { console.error(e); }
+        const templateToSave = updated.find(t => t.id === id);
+        if (templateToSave) {
+            const ok = await saveTemplate(templateToSave);
+            if (!ok) {
+                alert("Le modèle est enregistré sur cet appareil mais la sauvegarde en ligne a échoué. Réessayez dans un instant.");
+            }
         }
 
         setIsEditing(null);
@@ -253,10 +250,8 @@ const TemplateManager: React.FC = () => {
         if (confirm("Supprimer ce template ?")) {
             const filtered = templates.filter(t => t.id !== id);
             setTemplates(filtered);
-            localStorage.setItem('leadgen_email_templates', JSON.stringify(filtered));
-            if (supabase) {
-                supabase.from('email_templates').delete().eq('id', id).then();
-            }
+            writeLocalTemplates(filtered);
+            void deleteTemplate(id);
         }
     };
 

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Campaign, Contact, ProspectStatus, CampaignOutcome, OutcomeDetail, EmailTemplate } from '../types';
+import { loadTemplates as fetchTemplates, saveTemplate, writeLocalTemplates, readLocalTemplates } from '../services/templateService';
 import { BookOpen, Star } from 'lucide-react';
 
 const CampaignManager: React.FC = () => {
@@ -135,17 +136,9 @@ const CampaignManager: React.FC = () => {
         }
       ];
 
-      const stored = localStorage.getItem('leadgen_email_templates');
-      if (stored) {
-        try {
-          const custom = JSON.parse(stored);
-          setLibraryTemplates([...PREDEFINED, ...custom]);
-        } catch {
-          setLibraryTemplates(PREDEFINED);
-        }
-      } else {
-        setLibraryTemplates(PREDEFINED);
-      }
+      // Sauvegarde en base les modèles de ce navigateur, puis la base fait foi.
+      const custom = await fetchTemplates();
+      setLibraryTemplates([...PREDEFINED, ...custom]);
     } catch (err: any) {
       console.error("Load Error:", err);
     } finally {
@@ -747,7 +740,7 @@ const CampaignManager: React.FC = () => {
                       <label className="text-[11px] font-black uppercase text-slate-400 tracking-widest">Corps du message (Variable : {"{{Prénom}}"})</label>
                       <div className="flex gap-4">
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             if (!newCampaignData.subject || !newCampaignData.template) {
                               alert("Remplissez le sujet et le message d'abord");
                               return;
@@ -762,8 +755,9 @@ const CampaignManager: React.FC = () => {
                             };
                             const newList = [...libraryTemplates, newTpl];
                             setLibraryTemplates(newList);
-                            localStorage.setItem('leadgen_email_templates', JSON.stringify(newList));
-                            alert("Modèle sauvegardé !");
+                            writeLocalTemplates([...readLocalTemplates(), newTpl]);
+                            const ok = await saveTemplate(newTpl);
+                            alert(ok ? "Modèle sauvegardé !" : "Modèle enregistré sur cet appareil, mais la sauvegarde en ligne a échoué. Réessayez dans un instant.");
                           }}
                           className="flex items-center gap-2 text-[10px] font-black uppercase italic text-emerald-600 hover:text-emerald-700 transition-colors"
                         >
