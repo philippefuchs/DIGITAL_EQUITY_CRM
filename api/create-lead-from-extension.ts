@@ -29,12 +29,32 @@ export default async function handler(req, res) {
 
         // --- 🚨 LA SÉCURITÉ ANTI-ÉCRASEMENT ---
 
-        // A. On regarde si le contact existe déjà
-        const { data: existingContact } = await supabase
-            .from('contacts')
-            .select('email, address, website, photo_url')
-            .eq('linkedin_url', linkedinUrl)
-            .single();
+        // A. On regarde si le contact existe déjà (1) par URL LinkedIn, (2) sinon par email + même nom
+        const COLS = 'id, first_name, last_name, linkedin_url, email, address, website, photo_url, category, status';
+        let existingContact: any = null;
+        let matchedByEmail = false;
+
+        if (linkedinUrl) {
+            const { data: byLinkedin } = await supabase
+                .from('contacts')
+                .select(COLS)
+                .eq('linkedin_url', linkedinUrl)
+                .maybeSingle();
+            existingContact = byLinkedin;
+        }
+
+        if (!existingContact && email && email.trim() !== "") {
+            const { data: byEmail } = await supabase
+                .from('contacts')
+                .select(COLS)
+                .ilike('email', email.trim())
+                .limit(10);
+            const norm = (v: any) => (v || '').toString().trim().toLowerCase();
+            existingContact = (byEmail || []).find(
+                (c: any) => norm(c.first_name) === norm(firstName) && norm(c.last_name) === norm(lastName)
+            ) || null;
+            matchedByEmail = !!existingContact;
+        }
 
         // B. On décide quelle donnée garder
         // Logique : Si la nouvelle donnée est vide ET que l'ancienne existe, on garde l'ancienne.
@@ -55,32 +75,31 @@ export default async function handler(req, res) {
         const safePhoto = finalPhotoUrl || existingContact?.photo_url || null;
 
 
-        // 3. INSERTION / MISE À JOUR (UPSERT)
-        const { data, error } = await supabase
-            .from('contacts')
-            .upsert({
-                linkedin_url: linkedinUrl,
-                first_name: firstName,
-                last_name: lastName,
-                title: job,
-                company: company,
+        // 3. INSERTION / MISE À JOUR
+        // Catégorie et statut : on ne touche jamais à ceux d'un contact existant,
+        // un nouveau contact arrive en "Prospect" / "New".
+        const payload: any = {
+            linkedin_url: (matchedByEmail && existingContact?.linkedin_url) ? existingContact.linkedin_url : linkedinUrl,
+            first_name: firstName,
+            last_name: lastName,
+            title: job,
+            company: company,
+            email: safeEmail,
+            address: safeAddress,
+            website: safeWebsite,
+            photo_url: safePhoto,
+            category: existingContact?.category || 'prospect',
+            status: existingContact?.status || 'New',
+            data: {
+                source: 'chrome_extension',
+                imported_at: new Date().toISOString(),
+                last_updated: new Date().toISOString()
+            }
+        };
 
-                // ✅ On injecte nos valeurs sécurisées
-                email: safeEmail,
-                address: safeAddress,
-                website: safeWebsite,
-                photo_url: safePhoto,
-
-                data: {
-                    source: 'chrome_extension',
-                    imported_at: new Date().toISOString(),
-                    last_updated: new Date().toISOString()
-                }
-            }, {
-                onConflict: 'linkedin_url',
-                ignoreDuplicates: false // On met à jour, mais avec les valeurs intelligentes
-            })
-            .select();
+        const { data, error } = matchedByEmail
+            ? await supabase.from('contacts').update(payload).eq('id', existingContact.id).select()
+            : await supabase.from('contacts').upsert(payload, { onConflict: 'linkedin_url', ignoreDuplicates: false }).select();
 
         if (error) throw error;
 
