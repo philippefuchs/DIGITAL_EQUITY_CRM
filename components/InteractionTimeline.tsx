@@ -11,7 +11,7 @@ import { fr } from 'date-fns/locale';
 interface Interaction {
     id: string;
     contact_id: string;
-    type: 'email' | 'call' | 'meeting' | 'note' | 'status_change' | 'deal_update';
+    type: 'email' | 'email_reply' | 'call' | 'meeting' | 'note' | 'status_change' | 'deal_update';
     content: string;
     metadata?: any;
     created_at: string;
@@ -25,6 +25,7 @@ interface InteractionTimelineProps {
 
 const INTERACTION_TYPES = [
     { id: 'email', label: 'Email', icon: Mail, color: 'blue' },
+    { id: 'email_reply', label: 'Réponse reçue', icon: MessageSquare, color: 'emerald' },
     { id: 'call', label: 'Appel', icon: Phone, color: 'emerald' },
     { id: 'meeting', label: 'Réunion', icon: Calendar, color: 'violet' },
     { id: 'note', label: 'Note', icon: FileText, color: 'amber' },
@@ -135,7 +136,7 @@ const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, co
     };
 
     const getTypeConfig = (type: string) => {
-        return INTERACTION_TYPES.find(t => t.id === type) || INTERACTION_TYPES[3];
+        return INTERACTION_TYPES.find(t => t.id === type) || INTERACTION_TYPES.find(t => t.id === 'note')!;
     };
 
     const formatDate = (dateString: string) => {
@@ -262,7 +263,7 @@ const InteractionTimeline: React.FC<InteractionTimelineProps> = ({ contactId, co
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-500 mb-2 block">Type</label>
                                 <div className="grid grid-cols-3 gap-2">
-                                    {INTERACTION_TYPES.filter(t => !['status_change', 'deal_update'].includes(t.id)).map((type) => {
+                                    {INTERACTION_TYPES.filter(t => !['status_change', 'deal_update', 'email_reply'].includes(t.id)).map((type) => {
                                         const Icon = type.icon;
                                         const isSelected = newInteraction.type === type.id;
                                         return (

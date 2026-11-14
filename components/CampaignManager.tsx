@@ -14,6 +14,7 @@ import { Campaign, Contact, ProspectStatus, CampaignOutcome, OutcomeDetail, Emai
 import { loadTemplates as fetchTemplates, saveTemplate, writeLocalTemplates, readLocalTemplates } from '../services/templateService';
 import { useCategories } from './CategoryProvider';
 import { BookOpen, Star } from 'lucide-react';
+import { isUnsubscribed } from '../services/replyImport';
 
 const CampaignManager: React.FC = () => {
   const { categories, getCategory } = useCategories();
@@ -194,7 +195,8 @@ const CampaignManager: React.FC = () => {
     return contacts.filter(c => {
       const matchesCategory = categoryFilter === 'all' || c.category === categoryFilter;
       const matchesSearch = (c.firstName + ' ' + c.lastName + ' ' + (c.company || '')).toLowerCase().includes(targetSearch.toLowerCase());
-      return matchesCategory && matchesSearch;
+      // Les personnes désinscrites (import des réponses) ne sont plus proposées comme cibles
+      return matchesCategory && matchesSearch && !isUnsubscribed((c as any).tags);
     });
   }, [contacts, categoryFilter, targetSearch]);
 
@@ -279,8 +281,12 @@ const CampaignManager: React.FC = () => {
     const targets = contacts.filter(c => {
       const isTarget = tIds.includes(String(c.id));
       const hasEmail = c.email && c.email.length > 5 && c.email.includes('@');
-      return isTarget && hasEmail;
+      return isTarget && hasEmail && !isUnsubscribed((c as any).tags);
     });
+    const skippedUnsubscribed = contacts.filter(c => tIds.includes(String(c.id)) && isUnsubscribed((c as any).tags)).length;
+    if (skippedUnsubscribed > 0) {
+      alert(`${skippedUnsubscribed} contact(s) désinscrit(s) ne recevront pas ce message.`);
+    }
 
     if (targets.length === 0) {
       alert("Erreur : Aucun contact avec une adresse email valide n'a été trouvé.");
