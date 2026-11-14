@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { extractContactFromImage, enrichContactFromText } from '../services/geminiService';
 import { supabase } from '../services/supabase';
+import { useCategories } from './CategoryProvider';
+import { Category } from '../services/categoryService';
 import { ProspectStatus } from '../types';
 
 const CardScanner: React.FC = () => {
@@ -13,6 +15,7 @@ const CardScanner: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isEnriching, setIsEnriching] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const { categories } = useCategories();
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,7 +103,7 @@ const CardScanner: React.FC = () => {
     }
   };
 
-  const handleSave = async (category: 'prospect' | 'member') => {
+  const handleSave = async (category: Category) => {
     if (!result || !supabase) return;
     setIsSaving(true);
     try {
@@ -113,13 +116,13 @@ const CardScanner: React.FC = () => {
         phone: result.phone || null,
         linkedin_url: result.linkedinUrl || null,
         website: result.website || null,
-        category: category.toLowerCase().trim(),
-        status: category === 'member' ? 'Active' : ProspectStatus.NEW,
+        category: category.slug,
+        status: category.defaultStatus,
         notes: `Extrait par Scan IA le ${new Date().toLocaleDateString()}`
       };
       const { error } = await supabase.from('contacts').insert(payload);
       if (error) throw error;
-      alert(`✅ Ajouté avec succès ! Retrouvez-le en haut de votre liste dans l'onglet ${category === 'member' ? 'Membres' : 'Prospects'}.`);
+      alert(`✅ Ajouté avec succès ! Retrouvez-le en haut de votre liste dans l'onglet ${category.label}.`);
       reset();
     } catch (err: any) {
       alert("Erreur d'insertion Cloud: " + err.message);
@@ -275,20 +278,11 @@ const CardScanner: React.FC = () => {
 
           {result && (
             <div className="p-10 bg-slate-50 border-t border-slate-100 grid grid-cols-2 gap-4">
-              <button
-                onClick={() => handleSave('prospect')}
-                disabled={isSaving}
-                className="py-5 bg-slate-900 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest hover:bg-indigo-600 transition flex items-center justify-center gap-2"
-              >
-                <UserPlus size={16} /> Save as Prospect
-              </button>
-              <button
-                onClick={() => handleSave('member')}
-                disabled={isSaving}
-                className="py-5 bg-emerald-600 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest hover:bg-emerald-700 transition flex items-center justify-center gap-2"
-              >
-                <ShieldCheck size={16} /> Save as Member
-              </button>
+              {categories.map(c => (
+<button key={c.slug} onClick={() => handleSave(c)} disabled={isSaving} className="py-5 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: c.color }}>
+<UserPlus size={16} /> Ajouter : {c.label}
+</button>
+))}
             </div>
           )}
         </div>

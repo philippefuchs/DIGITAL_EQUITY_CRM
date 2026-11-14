@@ -4,13 +4,15 @@ import { CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart,
 import { Users, RefreshCw, Ticket, Briefcase, Globe, Activity, TrendingUp, CheckCircle2, UserCircle, LayoutGrid, Clock, ShieldCheck, Calendar, Zap, Sparkles, HelpCircle, UserX } from 'lucide-react';
 import { Contact, Campaign, ProspectStatus, OutcomeDetail } from '../types';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { useCategories } from './CategoryProvider';
 
 const Dashboard: React.FC = () => {
+  const { categories, getCategory } = useCategories();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [isChartReady, setIsChartReady] = useState(false);
-  const [statsCategory, setStatsCategory] = useState<'prospect' | 'member'>('member');
+  const [statsCategory, setStatsCategory] = useState<string>('member');
   const [lastSync, setLastSync] = useState<string>(new Date().toLocaleTimeString());
 
   const loadData = useCallback(async () => {
@@ -85,9 +87,7 @@ const Dashboard: React.FC = () => {
   const totalLeads = prospects.length;
   const totalMembers = members.length;
 
-  const currentCategoryData = useMemo(() =>
-    statsCategory === 'member' ? members : prospects
-    , [statsCategory, members, prospects]);
+  const currentCategoryData = useMemo(() => contacts.filter(c => c.category === statsCategory), [statsCategory, contacts]);
 
   const activeMembers = useMemo(() =>
     members.filter(m => {
@@ -282,9 +282,10 @@ const Dashboard: React.FC = () => {
               <h3 className="text-sm lg:text-lg font-black uppercase italic tracking-tighter text-slate-900">Secteurs Porteurs</h3>
               <p className="text-[8px] lg:text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">Top 5 segmentation</p>
             </div>
-            <div className="flex p-1 bg-slate-100 rounded-xl lg:rounded-2xl">
-              <button onClick={() => setStatsCategory('member')} className={`px-4 lg:px-6 py-2 rounded-lg lg:rounded-xl text-[8px] lg:text-[10px] font-black uppercase transition-all ${statsCategory === 'member' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>Membres</button>
-              <button onClick={() => setStatsCategory('prospect')} className={`px-4 lg:px-6 py-2 rounded-lg lg:rounded-xl text-[8px] lg:text-[10px] font-black uppercase transition-all ${statsCategory === 'prospect' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Leads</button>
+            <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-xl lg:rounded-2xl">
+              {categories.map(c => (
+<button key={c.slug} onClick={() => setStatsCategory(c.slug)} className="px-4 lg:px-6 py-2 rounded-lg lg:rounded-xl text-[8px] lg:text-[10px] font-black uppercase transition-all" style={statsCategory === c.slug ? { backgroundColor: '#fff', color: c.color, boxShadow: '0 1px 2px rgba(0,0,0,.08)' } : { color: '#64748b' }}>{c.label}</button>
+))}
             </div>
           </div>
           <div className="w-full h-[280px] lg:h-[320px] bg-slate-50/30 rounded-[32px] lg:rounded-[40px] overflow-hidden p-4 lg:p-8">
@@ -302,7 +303,7 @@ const Dashboard: React.FC = () => {
                   />
                   <Bar
                     dataKey="value"
-                    fill={statsCategory === 'member' ? '#10b981' : '#6366f1'}
+                    fill={getCategory(statsCategory).color}
                     radius={[0, 10, 10, 0]}
                     barSize={20}
                   >

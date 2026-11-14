@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { gradientFor } from '../services/categoryService';
 import { User, UserPlus } from 'lucide-react';
 
 interface ContactAvatarProps {
@@ -31,7 +32,7 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({ photoUrl, themeColor, siz
         xl: 48
     };
 
-    const containerClasses = `flex items-center justify-center border-4 border-slate-50 bg-slate-50 text-${themeColor}-500 shadow-inner overflow-hidden transition-all duration-500 ${sizeClasses[size]} ${!isModal ? 'group-hover:scale-110' : ''} ${isModal ? 'rotate-6 shadow-2xl' : ''}`;
+    const containerClasses = `flex items-center justify-center border-4 border-slate-50 bg-slate-50 shadow-inner overflow-hidden transition-all duration-500 ${sizeClasses[size]} ${!isModal ? 'group-hover:scale-110' : ''} ${isModal ? 'rotate-6 shadow-2xl' : ''}`;
 
     const isValidUrl = (url?: string) => {
         if (!url) return false;
@@ -64,7 +65,7 @@ const ContactAvatar: React.FC<ContactAvatarProps> = ({ photoUrl, themeColor, siz
     const Icon = isModal ? UserPlus : User;
 
     return (
-        <div className={`${containerClasses} ${isModal ? `bg-gradient-to-tr from-${themeColor}-500 to-${themeColor}-600 text-white` : ''}`}>
+        <div className={`${containerClasses} ${isModal ? 'text-white' : ''}`} style={isModal ? { background: gradientFor(themeColor) } : { color: themeColor }}>
             <Icon size={iconSizes[size]} strokeWidth={isModal ? 3 : 2.5} />
         </div>
     );

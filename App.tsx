@@ -20,6 +20,10 @@ import { checkUpcomingReminders, Reminder } from './services/reminderService';
 import { supabase, isSupabaseConfigured, saveSupabaseConfig } from './services/supabase';
 import { syncLocalTemplatesToDb } from './services/templateService';
 import { ToastProvider, useToast } from './components/ToastProvider';
+import { Tags } from 'lucide-react';
+import CategoryManager from './components/CategoryManager';
+import { useCategories } from './components/CategoryProvider';
+import { gradientFor } from './services/categoryService';
 
 // --- GLOBAL REALTIME LISTENER ---
 const GlobalNotifications = () => {
@@ -75,11 +79,12 @@ const GlobalNotifications = () => {
 };
 // --------------------------------
 
-type View = 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar' | 'carousel';
+type View = `cat:${string}` | 'categories' | 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar' | 'carousel';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(isSupabaseConfigured() ? 'dashboard' : 'settings');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { categories } = useCategories();
   const [isSyncing, setIsSyncing] = useState(false);
   const [isLogoSyncing, setIsLogoSyncing] = useState(false);
   const [activeReminders, setActiveReminders] = useState<Reminder[]>([]);
@@ -281,12 +286,13 @@ const App: React.FC = () => {
     }
   };
 
-  const navItems = [
+  type NavItem = { id: string; label: string; icon: React.ReactNode; color: string; hex?: string };
+  const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Analytics', icon: <BarChart3 size={20} />, color: 'from-blue-500 to-indigo-500' },
     { id: 'scanner', label: 'Scan Card', icon: <Scan size={20} />, color: 'from-amber-400 to-orange-500' },
     { id: 'enricher', label: 'IA Enrich', icon: <Zap size={20} />, color: 'from-fuchsia-500 to-purple-600' },
-    { id: 'database', label: 'Prospects', icon: <Cloud size={20} />, color: 'from-indigo-500 to-blue-600' },
-    { id: 'members', label: 'Membres', icon: <Users size={20} />, color: 'from-emerald-400 to-teal-600' },
+    ...categories.map((c): NavItem => ({ id: `cat:${c.slug}`, label: c.label, icon: <Users size={20} />, color: '', hex: c.color })),
+    { id: 'categories', label: 'Catégories', icon: <Tags size={20} />, color: 'from-slate-400 to-slate-600' },
     { id: 'duplicates', label: 'Doublons', icon: <GitMerge size={20} />, color: 'from-amber-500 to-orange-600' },
     { id: 'pipeline', label: 'Pipeline', icon: <TrendingUp size={20} />, color: 'from-violet-500 to-purple-600' },
     { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, color: 'from-indigo-500 to-violet-600' },
@@ -423,9 +429,9 @@ const App: React.FC = () => {
                     }`}
                 >
                   {isActive && (
-                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 rounded-r-full bg-gradient-to-b ${item.color} shadow-lg`}></div>
+                    <div className={`absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-8 rounded-r-full bg-gradient-to-b ${item.color} shadow-lg`} style={item.hex ? { background: gradientFor(item.hex) } : undefined}></div>
                   )}
-                  <div className={`p-2.5 rounded-xl transition-all duration-500 ${isActive ? `bg-gradient-to-tr ${item.color} text-white shadow-md` : 'bg-slate-100 group-hover:scale-110'}`}>
+                  <div className={`p-2.5 rounded-xl transition-all duration-500 ${isActive ? `bg-gradient-to-tr ${item.color} text-white shadow-md` : 'bg-slate-100 group-hover:scale-110'}`} style={isActive && item.hex ? { background: gradientFor(item.hex) } : undefined}>
                     {item.icon}
                   </div>
                   <span className={`uppercase tracking-[0.2em] text-[10px] font-black italic transition-all ${isActive ? 'text-slate-900' : 'text-slate-400 group-hover:text-slate-600'
@@ -485,8 +491,8 @@ const App: React.FC = () => {
               {currentView === 'dashboard' && <Dashboard />}
               {currentView === 'scanner' && <CardScanner />}
               {currentView === 'enricher' && <DataEnricher />}
-              {currentView === 'database' && <ContactManager category="prospect" />}
-              {currentView === 'members' && <ContactManager category="member" />}
+              {currentView.startsWith('cat:') && <ContactManager key={currentView} category={currentView.slice(4)} />}
+              {currentView === 'categories' && <CategoryManager />}
               {currentView === 'duplicates' && <DuplicateManager />}
               {currentView === 'pipeline' && <PipelineManager />}
               {currentView === 'calendar' && <CalendarManager />}

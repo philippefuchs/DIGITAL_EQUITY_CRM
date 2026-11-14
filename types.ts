@@ -26,7 +26,7 @@ export interface Contact {
   tags: string[];
   createdAt: string;
   lastInteraction?: string;
-  category: 'prospect' | 'member';
+  category: string; // slug de la table categories
   score?: number;
   scoreReason?: string;
 }

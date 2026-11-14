@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useCategories } from './CategoryProvider';
 import {
     TrendingUp, DollarSign, Users, Target, Filter, Search, Plus, X, Check,
     ChevronRight, Calendar, Phone, Mail, Edit2, Trash2, RefreshCw, Eye,
@@ -30,11 +31,12 @@ const STAGES = [
 ];
 
 const PipelineManager: React.FC = () => {
+    const { categories, getCategory } = useCategories();
     const [deals, setDeals] = useState<Deal[]>([]);
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterCategory, setFilterCategory] = useState<'all' | 'member' | 'prospect'>('all');
+    const [filterCategory, setFilterCategory] = useState<string>('all');
     const [isCompactView, setIsCompactView] = useState(false);
     const [showNewDealModal, setShowNewDealModal] = useState(false);
     const [draggedDeal, setDraggedDeal] = useState<Deal | null>(null);
@@ -276,16 +278,16 @@ const PipelineManager: React.FC = () => {
                         />
                     </div>
                     <div className="flex gap-2">
-                        {['all', 'member', 'prospect'].map((cat) => (
+                        {['all', ...categories.map(c => c.slug)].map((cat) => (
                             <button
                                 key={cat}
-                                onClick={() => setFilterCategory(cat as any)}
+                                onClick={() => setFilterCategory(cat)}
                                 className={`px-5 py-3 rounded-[16px] font-black text-[10px] uppercase tracking-widest transition-all ${filterCategory === cat
                                     ? 'bg-violet-500 text-white shadow-lg'
                                     : 'bg-white text-slate-400 hover:bg-slate-100'
                                     }`}
                             >
-                                {cat === 'all' ? 'Tous' : cat === 'member' ? 'Membres' : 'Prospects'}
+                                {cat === 'all' ? 'Tous' : getCategory(cat).label}
                             </button>
                         ))}
                     </div>
@@ -334,21 +336,16 @@ const PipelineManager: React.FC = () => {
                                             draggable
                                             onDragStart={() => handleDragStart(deal)}
                                             onClick={() => setSelectedDeal(deal)}
-                                            className={`p-5 rounded-[20px] border-2 cursor-move hover:shadow-lg transition-all ${deal.contact?.category === 'member'
-                                                ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'
-                                                : 'bg-indigo-50 border-indigo-200 hover:border-indigo-400'
-                                                } ${isCompactView ? 'py-3' : ''}`}
+                                            className={`p-5 rounded-[20px] border-2 cursor-move hover:shadow-lg transition-all bg-white ${isCompactView ? 'py-3' : ''}`}
+style={{ backgroundColor: getCategory(deal.contact?.category).color + '14', borderColor: getCategory(deal.contact?.category).color + '55' }}
                                         >
                                             <div className="flex items-start justify-between mb-3">
                                                 <h4 className="font-black text-sm text-slate-900 leading-tight flex-1">
                                                     {deal.title}
                                                 </h4>
-                                                <div className={`px-2 py-1 rounded-full text-[9px] font-black uppercase ${deal.contact?.category === 'member'
-                                                    ? 'bg-emerald-100 text-emerald-700'
-                                                    : 'bg-indigo-100 text-indigo-700'
-                                                    }`}>
-                                                    {deal.contact?.category === 'member' ? 'M' : 'P'}
-                                                </div>
+                                                <div className="px-2 py-1 rounded-full text-[9px] font-black uppercase" style={{ backgroundColor: getCategory(deal.contact?.category).color + '22', color: getCategory(deal.contact?.category).color }}>
+{getCategory(deal.contact?.category).label.slice(0, 3)}
+</div>
                                             </div>
 
                                             {!isCompactView && (
@@ -416,8 +413,8 @@ const PipelineManager: React.FC = () => {
                                 >
                                     <option value="">Sélectionner un contact</option>
                                     {contacts.map((contact) => {
-                                        const badge = contact.category === 'member' ? '🟢' : '🔵';
-                                        const categoryLabel = contact.category === 'member' ? 'MEMBRE' : 'PROSPECT';
+                                        const badge = '●';
+const categoryLabel = getCategory(contact.category).label.toUpperCase();
                                         return (
                                             <option key={contact.id} value={contact.id}>
                                                 {badge} {contact.firstName} {contact.lastName} • {contact.company || 'Sans société'} [{categoryLabel}]

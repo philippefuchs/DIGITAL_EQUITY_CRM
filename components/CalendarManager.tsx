@@ -5,6 +5,7 @@ import {
     Search, ChevronDown
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
+import { useCategories } from './CategoryProvider';
 
 interface Event {
     id: string;
@@ -23,6 +24,7 @@ interface Event {
 }
 
 const CalendarManager: React.FC = () => {
+    const { getCategory } = useCategories();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
@@ -435,10 +437,9 @@ const CalendarManager: React.FC = () => {
                                                                 {c.company || 'Sans société'}
                                                             </p>
                                                         </div>
-                                                        <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest ${c.category === 'member' ? 'bg-emerald-100 text-emerald-700' : 'bg-indigo-100 text-indigo-700'
-                                                            }`}>
-                                                            {c.category === 'member' ? 'Membre' : 'Prospect'}
-                                                        </div>
+                                                        <div className="px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest" style={{ backgroundColor: getCategory(c.category).color + '22', color: getCategory(c.category).color }}>
+{getCategory(c.category).label}
+</div>
                                                     </div>
                                                 </div>
                                             ))}

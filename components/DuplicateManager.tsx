@@ -5,8 +5,10 @@ import {
 } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { Contact } from '../types';
+import { useCategories } from './CategoryProvider';
 
 const DuplicateManager: React.FC = () => {
+    const { categories, getCategory } = useCategories();
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [duplicateGroups, setDuplicateGroups] = useState<{ email: string; contacts: Contact[] }[]>([]);
     const [loading, setLoading] = useState(true);
@@ -14,7 +16,7 @@ const DuplicateManager: React.FC = () => {
     const [selectedForMerge, setSelectedForMerge] = useState<string[]>([]);
     const [processing, setProcessing] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    const [filterCategory, setFilterCategory] = useState<'all' | 'member' | 'prospect'>('all');
+    const [filterCategory, setFilterCategory] = useState<string>('all');
 
     useEffect(() => {
         loadContacts();
@@ -237,16 +239,16 @@ const DuplicateManager: React.FC = () => {
                         />
                     </div>
                     <div className="flex gap-2">
-                        {['all', 'member', 'prospect'].map((cat) => (
+                        {['all', ...categories.map(c => c.slug)].map((cat) => (
                             <button
                                 key={cat}
-                                onClick={() => setFilterCategory(cat as any)}
+                                onClick={() => setFilterCategory(cat)}
                                 className={`px-6 py-4 rounded-[20px] font-black text-xs uppercase tracking-widest transition-all ${filterCategory === cat
                                     ? 'bg-amber-500 text-white'
                                     : 'bg-white text-slate-400 hover:bg-slate-100'
                                     }`}
                             >
-                                {cat === 'all' ? 'Tous' : cat === 'member' ? 'Membres' : 'Prospects'}
+                                {cat === 'all' ? 'Tous' : getCategory(cat).label}
                             </button>
                         ))}
                     </div>
@@ -308,10 +310,8 @@ const DuplicateManager: React.FC = () => {
                                                 }}
                                                 className={`p-6 rounded-[24px] border-2 cursor-pointer transition-all ${isSelected
                                                     ? 'bg-indigo-50 border-indigo-500'
-                                                    : contact.category === 'member'
-                                                        ? 'bg-emerald-50 border-emerald-200 hover:border-emerald-400'
-                                                        : 'bg-indigo-50/30 border-indigo-200 hover:border-indigo-400'
-                                                    }`}
+                                                    : 'bg-white border-slate-200 hover:border-slate-400'
+}`} style={!isSelected ? { borderColor: getCategory(contact.category).color + '66' } : undefined}
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-4">
@@ -324,19 +324,16 @@ const DuplicateManager: React.FC = () => {
                                                                 {contact.firstName} {contact.lastName}
                                                             </p>
                                                             <p className="text-xs text-slate-500 font-bold">
-                                                                {contact.company || 'Sans société'} • {contact.category === 'member' ? 'Membre' : 'Prospect'}
+                                                                {contact.company || 'Sans société'} • {getCategory(contact.category).label}
                                                             </p>
                                                             {contact.phone && (
                                                                 <p className="text-xs text-slate-400 mt-1">{contact.phone}</p>
                                                             )}
                                                         </div>
                                                     </div>
-                                                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${contact.category === 'member'
-                                                        ? 'bg-emerald-100 text-emerald-700'
-                                                        : 'bg-indigo-100 text-indigo-700'
-                                                        }`}>
-                                                        {contact.category === 'member' ? 'MEMBRE' : 'PROSPECT'}
-                                                    </div>
+                                                    <div className="px-3 py-1 rounded-full text-[10px] font-black uppercase" style={{ backgroundColor: getCategory(contact.category).color + '22', color: getCategory(contact.category).color }}>
+{getCategory(contact.category).label.toUpperCase()}
+</div>
                                                 </div>
                                             </div>
                                         );

@@ -7,12 +7,14 @@ import EmailSender from './EmailSender';
 import EmailHistory from './EmailHistory';
 import ContactAvatar from './ContactAvatar';
 import { useToast } from './ToastProvider';
+import { useCategories } from './CategoryProvider';
+import { gradientFor } from '../services/categoryService';
 
 interface ContactFormModalProps {
     isOpen: boolean;
     onClose: () => void;
     contact: Contact;
-    category: 'prospect' | 'member';
+    category: string;
     onSuccess: () => void;
 }
 
@@ -23,8 +25,9 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
     const [loadingEvents, setLoadingEvents] = useState(false);
     const formRef = useRef<HTMLFormElement>(null);
 
-    const themeColor = category === 'member' ? 'emerald' : 'indigo';
-    const gradientClass = category === 'member' ? 'from-emerald-500 to-teal-600' : 'from-indigo-500 to-violet-600';
+    const { categories, getCategory } = useCategories();
+    const cat = getCategory(category);
+    const themeColor = cat.color;
 
     useEffect(() => {
         const fetchContactEvents = async () => {
@@ -73,7 +76,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
             phone: fd.get('phone')?.toString().trim() || null,
             linkedin_url: fd.get('linkedin_url')?.toString().trim() || null,
             address: fd.get('address')?.toString().trim() || null,
-            status: fd.get('status')?.toString() || (category === 'member' ? 'Active' : 'New'),
+            status: fd.get('status')?.toString() || cat.defaultStatus,
             tags: tagsArray,
             notes: fd.get('notes')?.toString().trim() || null,
             category: fd.get('category')?.toString() || category, // ✅ Read category from form
@@ -165,7 +168,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                     <div className="flex items-center gap-6 md:gap-8">
                         <ContactAvatar
                             photoUrl={contact.photoUrl}
-                            themeColor={category === 'member' ? 'emerald' : 'indigo'}
+                            themeColor={themeColor}
                             size="lg"
                             isModal={true}
                         />
@@ -174,7 +177,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                                 {contact.id === 'new' ? `Nouveau Profil` : `${contact.firstName} ${contact.lastName}`}
                             </h3>
                             <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] mt-2 italic flex items-center gap-2 md:gap-3">
-                                <div className={`w-2 h-2 rounded-full bg-${themeColor}-500 animate-pulse`}></div>
+                                <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: themeColor }}></div>
                                 Master Profile Configuration
                             </p>
                         </div>
@@ -191,10 +194,8 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                                 <button
                                     key={tab}
                                     onClick={() => setActiveTab(tab as any)}
-                                    className={`px-6 py-4 font-black text-xs uppercase tracking-widest transition-all ${activeTab === tab
-                                        ? `text-${themeColor}-600 border-b-4 border-${themeColor}-500`
-                                        : 'text-slate-400 hover:text-slate-600'
-                                        }`}
+                                    className={`px-6 py-4 font-black text-xs uppercase tracking-widest transition-all border-b-4 ${activeTab === tab ? '' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+ style={activeTab === tab ? { color: themeColor, borderBottomColor: themeColor } : undefined}
                                 >
                                     <div className="flex items-center gap-2">
                                         {tab === 'info' && <Info size={16} />}
@@ -288,13 +289,13 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                                     <div className="space-y-2">
                                         <label className="text-[9px] font-black uppercase text-slate-400 ml-4">Type de Profil</label>
                                         <select name="category" defaultValue={contact.category || category} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-black italic text-xs uppercase cursor-pointer">
-                                            <option value="prospect">PROSPECT</option>
-                                            <option value="member">MEMBRE</option>
+                                            {categories.map(c => <option key={c.slug} value={c.slug}>{c.label.toUpperCase()}</option>)}
+{!categories.some(c => c.slug === (contact.category || category)) && <option value={contact.category || category}>{String(contact.category || category).toUpperCase()}</option>}
                                         </select>
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[9px] font-black uppercase text-slate-400 ml-4">Statut CRM</label>
-                                        <select name="status" defaultValue={contact.status || (category === 'member' ? 'Active' : 'New')} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-black italic text-xs uppercase cursor-pointer">
+                                        <select name="status" defaultValue={contact.status || cat.defaultStatus} className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none font-black italic text-xs uppercase cursor-pointer">
                                             {['New', 'Contacted', 'Interested', 'Closed', 'Active', 'Lost'].map(s => <option key={s} value={s}>{s}</option>)}
                                         </select>
                                     </div>
@@ -331,7 +332,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                             <h4 className="text-xl font-black uppercase italic text-slate-900">Prochains Rendez-vous</h4>
                             <button
                                 onClick={() => showToast("Désolé, la prise de RDV directe depuis ce modal arrive bientôt ! Utilisez le module 'Calendrier' pour planifier.", 'info')}
-                                className={`px-6 py-3 bg-gradient-to-r ${gradientClass} text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg italic flex items-center gap-2`}
+                                className="px-6 py-3 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg italic flex items-center gap-2" style={{ background: gradientFor(themeColor) }}
                             >
                                 <Plus size={14} strokeWidth={4} /> Planifier
                             </button>
@@ -401,7 +402,7 @@ const ContactFormModal: React.FC<ContactFormModalProps> = ({ isOpen, onClose, co
                         <button
                             type="button"
                             onClick={() => formRef.current?.requestSubmit()}
-                            className={`flex-[2] py-4 md:py-6 text-white font-black uppercase text-[10px] rounded-[30px] transition-all shadow-xl flex items-center justify-center gap-4 active:scale-[0.98] italic bg-gradient-to-r ${gradientClass}`}
+                            className="flex-[2] py-4 md:py-6 text-white font-black uppercase text-[10px] rounded-[30px] transition-all shadow-xl flex items-center justify-center gap-4 active:scale-[0.98] italic" style={{ background: gradientFor(themeColor) }}
                         >
                             <Check size={20} className="md:w-6 md:h-6" strokeWidth={5} /> {contact.id === 'new' ? 'Enregistrer' : 'Mettre à jour'}
                         </button>

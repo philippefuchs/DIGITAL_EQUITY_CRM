@@ -2,16 +2,18 @@ import React, { useState, useRef } from 'react';
 import { Download, Upload, X } from 'lucide-react';
 import { supabase } from '../services/supabase';
 import { useToast } from './ToastProvider';
+import { useCategories } from './CategoryProvider';
 
 interface ImportCSVModalProps {
     isOpen: boolean;
     onClose: () => void;
-    category: 'prospect' | 'member';
+    category: string;
     onSuccess: () => void;
 }
 
 const ImportCSVModal: React.FC<ImportCSVModalProps> = ({ isOpen, onClose, category, onSuccess }) => {
     const { showToast } = useToast();
+    const { getCategory } = useCategories();
     const [importFile, setImportFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -27,7 +29,7 @@ const ImportCSVModal: React.FC<ImportCSVModalProps> = ({ isOpen, onClose, catego
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        const fileName = category === 'member' ? 'Modèle_Import_Membres.csv' : 'Modèle_Import_Prospects.csv';
+        const fileName = `Modèle_Import_${getCategory(category).label.replace(/[^A-Za-z0-9À-ÿ_-]+/g, '_')}.csv`;
         link.download = fileName;
         link.click();
     };
@@ -95,7 +97,7 @@ const ImportCSVModal: React.FC<ImportCSVModalProps> = ({ isOpen, onClose, catego
             <div className="bg-white rounded-[32px] p-8 max-w-xl w-full shadow-2xl">
                 <div className="flex items-center justify-between mb-6">
                     <h3 className="text-xl font-black uppercase italic text-slate-900">
-                        Importer des {category === 'member' ? 'Membres' : 'Prospects'}
+                        Importer : {getCategory(category).label}
                     </h3>
                     <button
                         onClick={() => { onClose(); setImportFile(null); }}

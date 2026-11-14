@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCategories } from './CategoryProvider';
 import {
   FileSpreadsheet, Download, Users, UserCheck, Calendar,
   HelpCircle, RefreshCw, Briefcase, Mail, ChevronRight,
@@ -9,6 +10,7 @@ import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Contact, Campaign, OutcomeDetail } from '../types';
 
 const ReportingManager: React.FC = () => {
+  const { getCategory } = useCategories();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [emails, setEmails] = useState<any[]>([]);
@@ -221,7 +223,7 @@ const ReportingManager: React.FC = () => {
       'Société': c.company,
       'Titre': c.title || '',
       'Secteur': c.sector || 'N/A',
-      'Catégorie': c.category === 'member' ? 'Membre' : 'Lead',
+      'Catégorie': getCategory(c.category).label,
       'Statut': c.status,
       'Score IA': c.score || '',
       'Notes': c.notes || ''

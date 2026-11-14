@@ -11,9 +11,11 @@ import {
 import { supabase, isSupabaseConfigured } from '../services/supabase';
 import { Campaign, Contact, ProspectStatus, CampaignOutcome, OutcomeDetail, EmailTemplate } from '../types';
 import { loadTemplates as fetchTemplates, saveTemplate, writeLocalTemplates, readLocalTemplates } from '../services/templateService';
+import { useCategories } from './CategoryProvider';
 import { BookOpen, Star } from 'lucide-react';
 
 const CampaignManager: React.FC = () => {
+  const { categories, getCategory } = useCategories();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -32,7 +34,7 @@ const CampaignManager: React.FC = () => {
 
   const [selectedTargetIds, setSelectedTargetIds] = useState<string[]>([]);
   const [targetSearch, setTargetSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'prospect' | 'member'>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
 
   const [newCampaignData, setNewCampaignData] = useState({
     name: '',
@@ -652,11 +654,10 @@ const CampaignManager: React.FC = () => {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 bg-slate-50 p-8 rounded-[40px] border border-slate-100">
                       <div className="flex p-2 bg-white rounded-[24px] shadow-sm border border-slate-100">
                         {[
-                          { id: 'all', l: 'Tous', i: <UsersIcon size={14} /> },
-                          { id: 'prospect', l: 'Prospects', i: <Target size={14} /> },
-                          { id: 'member', l: 'Membres', i: <UserCheck size={14} /> }
-                        ].map(btn => (
-                          <button key={btn.id} onClick={() => setCategoryFilter(btn.id as any)} className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase italic tracking-widest transition-all flex items-center gap-2 ${categoryFilter === btn.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
+{ id: 'all', l: 'Tous', i: <UsersIcon size={14} /> },
+...categories.map(c => ({ id: c.slug, l: c.label, i: <Target size={14} /> }))
+].map(btn => (
+                          <button key={btn.id} onClick={() => setCategoryFilter(btn.id)} className={`px-8 py-3 rounded-[18px] text-[10px] font-black uppercase italic tracking-widest transition-all flex items-center gap-2 ${categoryFilter === btn.id ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}>
                             {btn.i} {btn.l}
                           </button>
                         ))}
@@ -689,31 +690,30 @@ const CampaignManager: React.FC = () => {
                             onClick={() => setSelectedTargetIds(prev => isSelected ? prev.filter(x => x !== String(p.id)) : [...prev, String(p.id)])}
                             className={`p-8 rounded-[40px] border-4 cursor-pointer transition-all duration-300 relative group overflow-hidden ${isSelected
                               ? 'bg-indigo-600 border-indigo-400 shadow-2xl scale-[1.02] z-10'
-                              : p.category === 'member'
-                                ? 'bg-emerald-50 border-emerald-100 hover:border-emerald-300'
-                                : 'bg-indigo-50 border-indigo-100 hover:border-indigo-300'
-                              }`}
-                          >
+                              : 'bg-white border-slate-100 hover:border-slate-300'
+}`}
+style={!isSelected ? { backgroundColor: getCategory(p.category).color + '14', borderColor: getCategory(p.category).color + '40' } : undefined}
+>
                             <div className="flex items-center gap-5 relative z-10">
                               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-md transition-transform group-hover:scale-110 ${isSelected
                                 ? 'bg-white text-indigo-600'
-                                : p.category === 'member' ? 'bg-emerald-500 text-white' : 'bg-indigo-500 text-white'
-                                }`}>
+                                : 'text-white'
+}`} style={!isSelected ? { backgroundColor: getCategory(p.category).color } : undefined}>
                                 {isSelected ? <Check size={28} strokeWidth={4} /> : <User size={24} />}
                               </div>
                               <div className="flex-1 truncate">
                                 <p className={`text-[11px] font-black uppercase italic mb-1 ${isSelected
                                   ? 'text-indigo-200'
-                                  : p.category === 'member' ? 'text-emerald-600' : 'text-indigo-600'
-                                  }`}>{p.company || 'Sans société'}</p>
+                                  : ''
+}`} style={!isSelected ? { color: getCategory(p.category).color } : undefined}>{p.company || 'Sans société'}</p>
                                 <p className={`text-lg font-black uppercase tracking-tighter italic leading-none ${isSelected ? 'text-white' : 'text-slate-900'
                                   }`}>{p.firstName} {p.lastName}</p>
                               </div>
                             </div>
                             {/* Petit badge type */}
                             {!isSelected && (
-                              <div className={`absolute top-4 right-6 text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full border ${p.category === 'member' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-indigo-100 text-indigo-700 border-indigo-200'}`}>
-                                {p.category === 'member' ? 'MEMBRE' : 'PROSPECT'}
+                              <div className="absolute top-4 right-6 text-[8px] font-black uppercase tracking-widest px-3 py-1 rounded-full border" style={{ backgroundColor: getCategory(p.category).color + '22', color: getCategory(p.category).color, borderColor: getCategory(p.category).color + '55' }}>
+{getCategory(p.category).label.toUpperCase()}
                               </div>
                             )}
                           </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { darken } from '../services/categoryService';
 import { Contact } from '../types';
 import { User, Trash2, Edit2, Database, Wand2 } from 'lucide-react';
 import ContactAvatar from './ContactAvatar';
@@ -51,10 +52,7 @@ const ContactList: React.FC<ContactListProps> = ({ contacts, themeColor, onEdit,
                                 themeColor={themeColor}
                                 size="md"
                             />
-                            <span className={`px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.2em] border italic ${['Active', 'Closed', 'Interested'].includes(c.status)
-                                ? `bg-${themeColor}-500 text-white border-${themeColor}-600`
-                                : `bg-white text-slate-400 border-slate-100`
-                                }`}>
+                            <span className="px-4 py-1.5 rounded-full text-[8px] font-black uppercase tracking-[0.2em] border italic" style={['Active', 'Closed', 'Interested'].includes(c.status) ? { backgroundColor: themeColor, color: '#fff', borderColor: darken(themeColor) } : { backgroundColor: '#fff', color: '#94a3b8', borderColor: '#f1f5f9' }}>
                                 {c.status || 'New'}
                             </span>
                             {c.score !== undefined && (

@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { enrichContactFromText } from '../services/geminiService';
 import { supabase } from '../services/supabase';
+import { useCategories } from './CategoryProvider';
+import { Category } from '../services/categoryService';
 import { ProspectStatus } from '../types';
 
 const DataEnricher: React.FC = () => {
@@ -17,6 +19,7 @@ const DataEnricher: React.FC = () => {
   const [result, setResult] = useState<any>(null);
   const [sources, setSources] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const { categories } = useCategories();
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -65,7 +68,7 @@ const DataEnricher: React.FC = () => {
     }
   };
 
-  const handleSaveToCRM = async (category: 'prospect' | 'member') => {
+  const handleSaveToCRM = async (category: Category) => {
     if (!result || !supabase) return;
     setIsSaving(true);
     try {
@@ -78,8 +81,8 @@ const DataEnricher: React.FC = () => {
         phone: result.phone,
         website: result.website,
         sector: result.sector,
-        category: category,
-        status: category === 'member' ? 'Active' : ProspectStatus.NEW,
+        category: category.slug,
+        status: category.defaultStatus,
         notes: result.notes || `Enrichi via Contact Finder Pro (Confiance: ${result.matchConfidence})`
       };
 
@@ -321,20 +324,11 @@ const DataEnricher: React.FC = () => {
 
                 {/* ACTION BUTTONS */}
                 <div className="pt-6 grid grid-cols-1 sm:grid-cols-2 gap-6 mt-auto">
-                  <button
-                    onClick={() => handleSaveToCRM('prospect')}
-                    disabled={isSaving}
-                    className="py-6 bg-slate-900 text-white rounded-[32px] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-indigo-600 transition-all shadow-xl active:scale-95 disabled:opacity-30"
-                  >
-                    <UserPlus size={20} /> Ajouter aux Prospects
-                  </button>
-                  <button
-                    onClick={() => handleSaveToCRM('member')}
-                    disabled={isSaving}
-                    className="py-6 bg-emerald-600 text-white rounded-[32px] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-emerald-700 transition-all shadow-xl active:scale-95 disabled:opacity-30"
-                  >
-                    <UserCheck size={20} /> Valider comme Membre
-                  </button>
+                  {categories.map(c => (
+<button key={c.slug} onClick={() => handleSaveToCRM(c)} disabled={isSaving} className="py-5 text-white rounded-[24px] font-black uppercase text-[10px] tracking-widest hover:opacity-90 transition flex items-center justify-center gap-2 shadow-lg" style={{ backgroundColor: c.color }}>
+<UserPlus size={16} /> Ajouter : {c.label}
+</button>
+))}
                 </div>
               </div>
             )}
