@@ -20,7 +20,8 @@ import { checkUpcomingReminders, Reminder } from './services/reminderService';
 import { supabase, isSupabaseConfigured, saveSupabaseConfig } from './services/supabase';
 import { syncLocalTemplatesToDb } from './services/templateService';
 import { ToastProvider, useToast } from './components/ToastProvider';
-import { Tags, Inbox, BellRing } from 'lucide-react';
+import { Tags, Inbox, BellRing, LifeBuoy } from 'lucide-react';
+import UserManual from './components/UserManual';
 import ReplyImporter from './components/ReplyImporter';
 import FollowUps from './components/FollowUps';
 import CategoryManager from './components/CategoryManager';
@@ -81,7 +82,7 @@ const GlobalNotifications = () => {
 };
 // --------------------------------
 
-type View = `cat:${string}` | 'categories' | 'replies' | 'followups' | 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar' | 'carousel';
+type View = `cat:${string}` | 'categories' | 'replies' | 'followups' | 'manual' | 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar' | 'carousel';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(isSupabaseConfigured() ? 'dashboard' : 'settings');
@@ -306,6 +307,7 @@ const App: React.FC = () => {
     { id: 'reporting', label: 'Export', icon: <FileSpreadsheet size={20} />, color: 'from-slate-400 to-slate-600' },
     // { id: 'voice', label: 'IA Voice', icon: <Mic size={20} />, color: 'from-orange-400 to-red-500' },
     // { id: 'images', label: 'Studio', icon: <ImageIcon size={20} />, color: 'from-cyan-400 to-blue-500' },
+    { id: 'manual', label: 'Manuel', icon: <LifeBuoy size={20} />, color: 'from-sky-400 to-blue-600' },
     { id: 'settings', label: 'Maintenance', icon: <Settings size={20} />, color: 'from-slate-300 to-slate-500' },
   ];
 
@@ -503,6 +505,7 @@ const App: React.FC = () => {
               {currentView === 'carousel' && <CarouselManager />}
               {currentView === 'campaigns' && <CampaignManager />}
               {currentView === 'followups' && <FollowUps />}
+              {currentView === 'manual' && <UserManual />}
               {currentView === 'replies' && <ReplyImporter />}
               {currentView === 'templates' && <TemplateManager />}
               {currentView === 'reporting' && <ReportingManager />}
