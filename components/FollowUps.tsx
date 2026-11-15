@@ -18,7 +18,12 @@ const FollowUps: React.FC = () => {
   const { categories } = useCategories();
   const [data, setData] = useState<FollowUpData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [opts, setOpts] = useState<FollowUpOptions>(DEFAULT_OPTIONS);
+  const [opts, setOpts] = useState<FollowUpOptions>(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('leadgen_followup_options') || 'null');
+      return saved ? { ...DEFAULT_OPTIONS, ...saved } : DEFAULT_OPTIONS;
+    } catch { return DEFAULT_OPTIONS; }
+  });
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [composing, setComposing] = useState(false);
   const [templates, setTemplates] = useState<{ id: string; name: string; subject: string; body: string }[]>([]);
@@ -36,6 +41,7 @@ const FollowUps: React.FC = () => {
     } finally { setLoading(false); }
   };
   useEffect(() => { refresh(); }, []);
+  useEffect(() => { try { localStorage.setItem('leadgen_followup_options', JSON.stringify(opts)); } catch { /* stockage indisponible */ } }, [opts]);
 
   const list = useMemo(() => (data ? computeFollowUps(data, opts) : []), [data, opts]);
   const selected = useMemo(() => list.filter(f => picked.has(f.contact.id)), [list, picked]);
@@ -99,10 +105,20 @@ const FollowUps: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mt-6 text-xs font-bold text-slate-700">
-          <label className="space-y-1">Dernier email il y a au moins
-            <select value={opts.minDays} onChange={e => set('minDays', Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-2">
-              {[0, 3, 5, 7, 10, 14, 21, 30].map(d => <option key={d} value={d}>{d === 0 ? 'aucun délai' : `${d} jours`}</option>)}
-            </select>
+          <label className="space-y-1">Dernier email il y a au moins (jours)
+            <div className="flex items-center gap-2">
+              <input
+                type="number" min={0} max={365} value={opts.minDays}
+                onChange={e => set('minDays', Math.max(0, Math.min(365, Math.floor(Number(e.target.value) || 0))))}
+                className="w-20 border border-slate-200 rounded-lg p-2"
+              />
+              <div className="flex gap-1">
+                {[3, 7, 14, 30].map(d => (
+                  <button key={d} type="button" onClick={() => set('minDays', d)}
+                    className={`px-2 py-1 rounded-lg text-[11px] border ${opts.minDays === d ? 'bg-indigo-600 text-white border-indigo-600' : 'border-slate-200 hover:bg-slate-50'}`}>{d}</button>
+                ))}
+              </div>
+            </div>
           </label>
           <label className="space-y-1">Ouverture
             <select value={opts.open} onChange={e => set('open', e.target.value as OpenFilter)} className="w-full border border-slate-200 rounded-lg p-2">
