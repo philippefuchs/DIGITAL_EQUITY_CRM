@@ -20,8 +20,9 @@ import { checkUpcomingReminders, Reminder } from './services/reminderService';
 import { supabase, isSupabaseConfigured, saveSupabaseConfig } from './services/supabase';
 import { syncLocalTemplatesToDb } from './services/templateService';
 import { ToastProvider, useToast } from './components/ToastProvider';
-import { Tags, Inbox } from 'lucide-react';
+import { Tags, Inbox, BellRing } from 'lucide-react';
 import ReplyImporter from './components/ReplyImporter';
+import FollowUps from './components/FollowUps';
 import CategoryManager from './components/CategoryManager';
 import { useCategories } from './components/CategoryProvider';
 import { gradientFor } from './services/categoryService';
@@ -80,7 +81,7 @@ const GlobalNotifications = () => {
 };
 // --------------------------------
 
-type View = `cat:${string}` | 'categories' | 'replies' | 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar' | 'carousel';
+type View = `cat:${string}` | 'categories' | 'replies' | 'followups' | 'dashboard' | 'database' | 'members' | 'campaigns' | 'voice' | 'images' | 'reporting' | 'enricher' | 'scanner' | 'settings' | 'templates' | 'duplicates' | 'pipeline' | 'calendar' | 'carousel';
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<View>(isSupabaseConfigured() ? 'dashboard' : 'settings');
@@ -299,6 +300,7 @@ const App: React.FC = () => {
     { id: 'calendar', label: 'Calendrier', icon: <Calendar size={20} />, color: 'from-indigo-500 to-violet-600' },
     { id: 'carousel', label: 'IA Carousel', icon: <Layers size={20} />, color: 'from-fuchsia-500 to-rose-500' },
     { id: 'campaigns', label: 'Campagnes', icon: <Mail size={20} />, color: 'from-rose-500 to-pink-600' },
+    { id: 'followups', label: 'À relancer', icon: <BellRing size={20} />, color: 'from-orange-500 to-amber-600' },
     { id: 'replies', label: 'Réponses', icon: <Inbox size={20} />, color: 'from-emerald-500 to-teal-600' },
     { id: 'templates', label: 'E-mail Library', icon: <BookOpen size={20} />, color: 'from-amber-400 to-orange-500' },
     { id: 'reporting', label: 'Export', icon: <FileSpreadsheet size={20} />, color: 'from-slate-400 to-slate-600' },
@@ -500,6 +502,7 @@ const App: React.FC = () => {
               {currentView === 'calendar' && <CalendarManager />}
               {currentView === 'carousel' && <CarouselManager />}
               {currentView === 'campaigns' && <CampaignManager />}
+              {currentView === 'followups' && <FollowUps />}
               {currentView === 'replies' && <ReplyImporter />}
               {currentView === 'templates' && <TemplateManager />}
               {currentView === 'reporting' && <ReportingManager />}

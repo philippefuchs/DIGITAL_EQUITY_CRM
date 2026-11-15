@@ -15,6 +15,7 @@ import { loadTemplates as fetchTemplates, saveTemplate, writeLocalTemplates, rea
 import { useCategories } from './CategoryProvider';
 import { BookOpen, Star } from 'lucide-react';
 import { isUnsubscribed } from '../services/replyImport';
+import { markContacted } from '../services/relance';
 
 const CampaignManager: React.FC = () => {
   const { categories, getCategory } = useCategories();
@@ -361,6 +362,8 @@ const CampaignManager: React.FC = () => {
                 subject: payload.template_params.subject,
                 body: payload.template_params.message
               }]);
+            // Le contact « New » (ou sans statut) passe à « Contacted » ; les autres statuts ne bougent pas
+            await markContacted({ id: String(leadId), status: (c as any).status });
           }
         } else {
           const errorText = await res.text();
