@@ -683,8 +683,7 @@ const App: React.FC = () => {
                             <Users size={18} /> 02. Gestion Contacts
                           </h4>
                           <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                            Les <b className="text-white">Membres</b> sont vos partenaires actifs. Les <b className="text-white">Prospects</b> sont vos cibles. Utilisez le bouton "Ajouter" pour une création manuelle ou le scanneur de cartes pour l'automatisation.
-                          </p>
+                            Les <b className="text-white">Membres</b> sont vos partenaires actifs. Les <b className="text-white">Prospects</b> sont vos cibles. Utilisez le bouton "Ajouter" pour une création manuelle, le scanneur de cartes ou l'<b className="text-white">import CSV</b> : le fichier est analysé avant toute écriture, les doublons (LinkedIn, email, nom + société) sont repérés et les homonymes ne sont importés que si vous les cochez. Un contact « New » passe tout seul à « Contacted » quand une campagne ou une relance lui est envoyée.</p>
                         </div>
                         <div className="space-y-4">
                           <h4 className="text-amber-400 text-[12px] font-black uppercase tracking-widest italic flex items-center gap-3">
@@ -709,7 +708,7 @@ const App: React.FC = () => {
                             <Send size={18} /> 05. Méga-Campagnes & Tracking
                           </h4>
                           <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                            Créez des workflows en 4 étapes. Tout est tracké : <b className="text-white">Ouvertures</b>, clics et réponses. Chaque email envoyé via une campagne apparaît désormais dans l'historique du contact avec son statut en temps réel.
+                            Créez des workflows en 4 étapes. Les <b className="text-white">ouvertures</b> sont suivies (indicatif : un client de messagerie qui bloque les images les masque). Qualifiez les résultats puis terminez la campagne pour alimenter le tableau de bord. Chaque email envoyé via une campagne apparaît désormais dans l'historique du contact avec son statut en temps réel.
                           </p>
                         </div>
                         <div className="space-y-4">
@@ -733,7 +732,7 @@ const App: React.FC = () => {
                             <Calendar size={18} /> 08. Agenda & Rappels
                           </h4>
                           <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                            Planifiez vos rendez-vous et recevez des <b className="text-white">notifications intelligentes</b>. Sync bidirectionnelle avec vos calendriers externes (Google/Outlook via iCal).
+                            Planifiez vos rendez-vous avec un <b className="text-white">rappel</b> (15 min à 1 jour avant). Le rappel s'affiche dans le CRM, application ouverte : pas d'email ni de notification sur le téléphone, et pas de synchronisation avec Google ou Outlook.
                           </p>
                         </div>
                         <div className="space-y-4">
@@ -742,6 +741,22 @@ const App: React.FC = () => {
                           </h4>
                           <p className="text-slate-400 text-sm font-medium leading-relaxed">
                             Transformez n'importe quel sujet ou URL en un <b className="text-white">Carousel LinkedIn viral</b> (PDF). L'IA génère les accroches, le design et la structure pour maximiser l'engagement.
+                          </p>
+                        </div>
+                        <div className="space-y-4">
+                          <h4 className="text-orange-400 text-[12px] font-black uppercase tracking-widest italic flex items-center gap-3">
+                            <BellRing size={18} /> 10. À relancer
+                          </h4>
+                          <p className="text-slate-400 text-sm font-medium leading-relaxed">
+                            Liste les personnes dont le <b className="text-white">dernier email date d'au moins N jours</b> (7 par défaut, modifiable et mémorisé) et qui n'ont pas répondu. Cochez, choisissez un modèle ou écrivez un message, vérifiez l'aperçu, envoyez, en gardant l'onglet ouvert. Les désinscrits, emails invalides et statuts Lost / Closed sont exclus.
+                          </p>
+                        </div>
+                        <div className="space-y-4">
+                          <h4 className="text-emerald-400 text-[12px] font-black uppercase tracking-widest italic flex items-center gap-3">
+                            <Inbox size={18} /> 11. Réponses
+                          </h4>
+                          <p className="text-slate-400 text-sm font-medium leading-relaxed">
+                            Importe dans le CRM les réponses lues dans la messagerie (via l'assistant Claude, avec la consigne fournie à l'écran) : historique, statut, tag « Désinscrit » et résultat de campagne sont mis à jour après votre contrôle. À faire <b className="text-white">avant</b> de relancer, pour que la liste « À relancer » soit juste.
                           </p>
                         </div>
                       </div>
