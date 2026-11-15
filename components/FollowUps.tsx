@@ -21,7 +21,8 @@ const FollowUps: React.FC = () => {
   const [opts, setOpts] = useState<FollowUpOptions>(() => {
     try {
       const saved = JSON.parse(localStorage.getItem('leadgen_followup_options') || 'null');
-      return saved ? { ...DEFAULT_OPTIONS, ...saved } : DEFAULT_OPTIONS;
+      // le délai repart toujours de la valeur par défaut (7 jours) ; les autres filtres sont mémorisés
+      return saved ? { ...DEFAULT_OPTIONS, ...saved, minDays: DEFAULT_OPTIONS.minDays } : DEFAULT_OPTIONS;
     } catch { return DEFAULT_OPTIONS; }
   });
   const [picked, setPicked] = useState<Set<string>>(new Set());
