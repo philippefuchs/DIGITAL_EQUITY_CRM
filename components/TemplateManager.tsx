@@ -212,7 +212,7 @@ const TemplateManager: React.FC = () => {
                 // Première utilisation : on installe la bibliothèque de départ et on la sauvegarde.
                 list = PREDEFINED_TEMPLATES.map((t, i) => ({
                     ...t,
-                    id: `tpl-${Date.now()}-${i}`,
+                    id: `tpl-default-${i}`, // identifiant fixe : pas de doublon si la bibliothèque est réinstallée
                     createdAt: new Date().toISOString()
                 }));
                 writeLocalTemplates(list);

@@ -49,19 +49,42 @@ export const writeLocalTemplates = (templates: EmailTemplate[]) => {
   }
 };
 
+const norm = (v: string | null | undefined) => (v ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+const contentKey = (t: { name?: string | null; subject?: string | null; body?: string | null }) =>
+  `${norm(t.name)}|${norm(t.subject)}|${norm(t.body)}`;
+
 /**
  * Envoie vers Supabase les modèles présents uniquement dans ce navigateur.
- * N'écrase jamais un modèle déjà présent en base (ignoreDuplicates) :
- * on ne fait qu'ajouter ce qui manque. Renvoie true si tout est en base.
+ * N'écrase jamais un modèle déjà présent en base et n'ajoute pas un modèle
+ * dont le contenu (nom, objet, corps) existe déjà sous un autre identifiant :
+ * on ne fait qu'ajouter ce qui manque vraiment. Renvoie true si tout est en base.
  */
 export const syncLocalTemplatesToDb = async (): Promise<boolean> => {
   if (!supabase) return false;
   const local = readLocalTemplates().filter(t => t && t.id);
   if (local.length === 0) return true;
   try {
+    const { data: existing, error: readError } = await supabase
+      .from('email_templates')
+      .select('id,name,subject,body');
+    if (readError || !existing) {
+      console.error('Lecture des modèles en base impossible:', readError?.message);
+      return false;
+    }
+    const ids = new Set((existing as DbTemplate[]).map(r => r.id));
+    const keys = new Set((existing as DbTemplate[]).map(contentKey));
+    const toAdd: EmailTemplate[] = [];
+    for (const t of local) {
+      if (ids.has(String(t.id))) continue;
+      const k = contentKey(t);
+      if (keys.has(k)) continue; // même contenu déjà en base sous un autre identifiant
+      keys.add(k); // évite aussi les doublons à l'intérieur du cache local
+      toAdd.push(t);
+    }
+    if (toAdd.length === 0) return true;
     const { error } = await supabase
       .from('email_templates')
-      .upsert(local.map(toDb), { onConflict: 'id', ignoreDuplicates: true });
+      .upsert(toAdd.map(toDb), { onConflict: 'id', ignoreDuplicates: true });
     if (error) {
       console.error('Sauvegarde des modèles en base impossible:', error.message);
       return false;
